@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,8 +14,6 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
-  Eye,
-  EyeOff,
   Brain,
   FileText,
   Terminal,
@@ -29,7 +26,7 @@ import {
   Code,
 } from "lucide-react";
 import type { LogConversation, LogMessage } from "@/lib/types";
-import { formatDurationMinutes } from "@/lib/format";
+import { formatDuration, formatDurationMinutes } from "@/lib/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -759,45 +756,56 @@ function GlobToolCall({ input }: { input: Record<string, unknown> }) {
 }
 
 type GrepResultLine =
-  | { kind: "match"; file: string; lineNo: number; code: string }
+  | { kind: "match"; file: string; lineNo: number; code: string; isMatch: boolean }
   | { kind: "file"; path: string }
   | { kind: "text"; text: string };
 
 function parseGrepResult(text: string): GrepResultLine[] {
   return text.split("\n").filter(Boolean).map((raw) => {
-    // content mode: /path/to/file:123:code
-    const m = raw.match(/^(.+?):(\d+):(.*)$/);
-    if (m) return { kind: "match" as const, file: m[1], lineNo: Number(m[2]), code: m[3] };
+    // Single-file match: 123:code (no filename)
+    const singleMatch = raw.match(/^(\d+):(.*)$/);
+    if (singleMatch) return { kind: "match" as const, file: "", lineNo: Number(singleMatch[1]), code: singleMatch[2], isMatch: true };
+    // Single-file context: 123-code (no filename)
+    const singleCtx = raw.match(/^(\d+)-(.*)$/);
+    if (singleCtx) return { kind: "match" as const, file: "", lineNo: Number(singleCtx[1]), code: singleCtx[2], isMatch: false };
+    // Multi-file match: /path/to/file:123:code
+    const multiMatch = raw.match(/^(.+?):(\d+):(.*)$/);
+    if (multiMatch) return { kind: "match" as const, file: multiMatch[1], lineNo: Number(multiMatch[2]), code: multiMatch[3], isMatch: true };
+    // Multi-file context: /path/to/file-123-code
+    const multiCtx = raw.match(/^(.+?)-(\d+)-(.*)$/);
+    if (multiCtx) return { kind: "match" as const, file: multiCtx[1], lineNo: Number(multiCtx[2]), code: multiCtx[3], isMatch: false };
     // files_with_matches mode: lines starting with /
     if (raw.startsWith("/")) return { kind: "file" as const, path: raw };
-    // anything else (summary lines, "No matches found", etc.)
+    // anything else (summary lines, "No matches found", group separators, etc.)
     return { kind: "text" as const, text: raw };
   });
 }
 
 function GrepContentView({ lines }: { lines: Extract<GrepResultLine, { kind: "match" }>[] }) {
   // Group by file
-  const groups: { file: string; matches: { lineNo: number; code: string }[] }[] = [];
+  const groups: { file: string; matches: { lineNo: number; code: string; isMatch: boolean }[] }[] = [];
   for (const line of lines) {
     const last = groups[groups.length - 1];
     if (last && last.file === line.file) {
-      last.matches.push({ lineNo: line.lineNo, code: line.code });
+      last.matches.push({ lineNo: line.lineNo, code: line.code, isMatch: line.isMatch });
     } else {
-      groups.push({ file: line.file, matches: [{ lineNo: line.lineNo, code: line.code }] });
+      groups.push({ file: line.file, matches: [{ lineNo: line.lineNo, code: line.code, isMatch: line.isMatch }] });
     }
   }
 
   return (
-    <div className="overflow-auto rounded-md border bg-background text-xs font-mono">
+    <div className="overflow-auto bg-background text-xs font-mono">
       {groups.map((group, gi) => (
         <div key={gi}>
-          <div className={`px-2 py-1 text-muted-foreground truncate ${gi > 0 ? "border-t border-border/50" : ""}`}>
-            {group.file}
-          </div>
+          {group.file && (
+            <div className={`px-3 py-1 text-muted-foreground truncate ${gi > 0 ? "border-t border-border/50" : ""}`}>
+              {group.file}
+            </div>
+          )}
           <table className="w-full border-collapse">
             <tbody>
               {group.matches.map((match, mi) => (
-                <tr key={mi} className="hover:bg-muted/50">
+                <tr key={mi} className={match.isMatch ? "bg-yellow-50 dark:bg-yellow-950/20" : "hover:bg-muted/50"}>
                   <td className="select-none text-right pr-3 pl-3 text-muted-foreground/50 border-r border-border/50 align-top" style={{ width: "5ch" }}>
                     {match.lineNo}
                   </td>
@@ -852,7 +860,7 @@ function GrepToolCall({
     <div className="space-y-1">
       <div className="flex items-center gap-2 flex-wrap">
         <ToolBadge label="Grep" icon={Search} />
-        <span className="font-mono text-xs text-foreground">{pattern}</span>
+        <span className="font-mono text-xs text-muted-foreground">{pattern}</span>
         {path && (
           <span className="text-xs text-muted-foreground">in {path}</span>
         )}
@@ -874,14 +882,14 @@ function GrepToolCall({
             <GrepContentView lines={matches} />
           )}
           {showContent && hasFiles && !hasMatches && (
-            <div className="overflow-auto rounded-md border bg-background text-xs font-mono p-2 space-y-0.5">
+            <div className="overflow-auto bg-background text-xs font-mono p-3 space-y-0.5">
               {files.map((p, i) => (
-                <div key={i} className="text-foreground">{p.path}</div>
+                <div key={i} className="text-muted-foreground">{p.path}</div>
               ))}
             </div>
           )}
           {showContent && !hasMatches && !hasFiles && hasText && (
-            <div className="overflow-auto rounded-md border bg-background text-xs font-mono p-2 space-y-0.5">
+            <div className="overflow-auto bg-background text-xs font-mono p-3 space-y-0.5">
               {texts.map((p, i) => (
                 <div key={i} className="text-muted-foreground">{p.text}</div>
               ))}
@@ -1298,11 +1306,34 @@ function UserPromptCard({
   );
 }
 
+function computeTurnDuration(turn: Extract<Turn, { kind: "assistant_turn" }>): number | null {
+  const start = new Date(turn.timestamp).getTime();
+  let end = start;
+
+  // Check last message timestamp
+  const lastMsg = turn.messages[turn.messages.length - 1];
+  if (lastMsg) {
+    end = Math.max(end, new Date(lastMsg.msg_timestamp).getTime());
+  }
+
+  // Check tool result timestamps
+  for (const result of turn.toolResults.values()) {
+    if (result.timestamp) {
+      end = Math.max(end, new Date(result.timestamp).getTime());
+    }
+  }
+
+  const diff = end - start;
+  return diff > 0 ? diff : null;
+}
+
 function AssistantTurnCard({
   turn,
 }: {
   turn: Extract<Turn, { kind: "assistant_turn" }>;
 }) {
+  const durationMs = useMemo(() => computeTurnDuration(turn), [turn]);
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
@@ -1315,6 +1346,11 @@ function AssistantTurnCard({
           <Badge variant="outline" className="font-mono text-xs">
             {shortenModel(turn.model)}
           </Badge>
+        )}
+        {durationMs !== null && (
+          <span className="text-xs text-muted-foreground">
+            {formatDuration(durationMs)}
+          </span>
         )}
         <UsageInfo usage={turn.usage} />
       </div>
@@ -1383,14 +1419,6 @@ function TurnSeparator({
   );
 }
 
-function NoiseLine({ message }: { message: LogMessage }) {
-  return (
-    <div className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground">
-      <span className="font-mono">{message.msg_type}</span>
-      <span>{new Date(message.msg_timestamp).toLocaleTimeString()}</span>
-    </div>
-  );
-}
 
 // ─── Conversation summary ─────────────────────────────────────────────────
 
@@ -1476,7 +1504,6 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<LogConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showNoise, setShowNoise] = useState(false);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1509,44 +1536,11 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
-  const { conversationMessages, noiseCount } = useMemo(() => {
-    if (!data) return { conversationMessages: [], noiseCount: 0 };
-    const noiseTypes = new Set([
-      "progress",
-      "queue-operation",
-      "file-history-snapshot",
-    ]);
-    const conversation: LogMessage[] = [];
-    let noise = 0;
-
-    for (const msg of data.messages) {
-      if (noiseTypes.has(msg.msg_type)) {
-        noise++;
-      } else if (msg.msg_type === "system") {
-        let isTurnDuration = false;
-        try {
-          const parsed = JSON.parse(msg.raw);
-          isTurnDuration = parsed.subtype === "turn_duration";
-        } catch {
-          // ignore
-        }
-        if (isTurnDuration) {
-          conversation.push(msg);
-        } else {
-          noise++;
-        }
-      } else {
-        conversation.push(msg);
-      }
-    }
-
-    return { conversationMessages: conversation, noiseCount: noise };
-  }, [data]);
 
   const turns = useMemo(() => {
     if (!data) return [];
-    return groupIntoTurns(data.messages, showNoise);
-  }, [data, showNoise]);
+    return groupIntoTurns(data.messages);
+  }, [data]);
 
   if (loading) {
     return (
@@ -1572,9 +1566,6 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const displayMessages = showNoise
-    ? data.messages
-    : conversationMessages;
 
   return (
     <div>
@@ -1606,29 +1597,11 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
           </button>
         </div>
 
-        {noiseCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowNoise(!showNoise)}
-            className="gap-2 text-xs"
-          >
-            {showNoise ? (
-              <EyeOff className="h-3.5 w-3.5" />
-            ) : (
-              <Eye className="h-3.5 w-3.5" />
-            )}
-            {showNoise
-              ? "Hide"
-              : `Show ${noiseCount}`}{" "}
-            progress/system messages
-          </Button>
-        )}
       </div>
 
       {/* Content */}
       {viewMode === "raw" ? (
-        <RawJsonlView messages={displayMessages} />
+        <RawJsonlView messages={data.messages} />
       ) : (
         <div className="space-y-4">
           {turns.map((turn, i) => {
@@ -1641,13 +1614,6 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
                 return <CompactSummaryBanner key={i} turn={turn} />;
               case "turn_separator":
                 return <TurnSeparator key={i} turn={turn} />;
-              case "noise":
-                return (
-                  <NoiseLine
-                    key={`noise-${i}`}
-                    message={turn.message}
-                  />
-                );
             }
           })}
         </div>
