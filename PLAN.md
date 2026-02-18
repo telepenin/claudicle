@@ -1,8 +1,8 @@
-# Claude Log Collection — Open Source
+# Claudicle — Open Source
 
 ## Context
 
-Open-source tool to collect and view Claude Code session telemetry. OTel Collector runs locally (receives OTLP + tails JSONL files), exports to ClickHouse (Docker), and a Next.js app provides the web UI. No auth, no custom backend.
+Claudicle (Claude + Chronicle) — open-source tool to collect and view Claude Code session telemetry. OTel Collector runs locally (receives OTLP + tails JSONL files), exports to ClickHouse (Docker), and a Next.js app provides the web UI. No auth, no custom backend.
 
 ### Two data sources
 
@@ -70,8 +70,8 @@ Exposed ports:
 
 **Step 1**: Start the stack
 ```bash
-git clone https://github.com/you/claude-log-collection
-cd claude-log-collection
+git clone https://github.com/telepenin/claudicle
+cd claudicle
 docker compose up -d
 ```
 
@@ -228,7 +228,7 @@ Each card shows timestamp. Events ordered chronologically.
 ## Project Structure
 
 ```
-claude-log-collection/
+claudicle/
 ├── docker-compose.yml
 ├── otelcol-config.yaml
 ├── Dockerfile                            # Next.js app

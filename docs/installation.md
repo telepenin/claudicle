@@ -27,8 +27,8 @@ otelcol-contrib --version
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/nicktelepenin/claude-log-collection.git
-cd claude-log-collection
+git clone https://github.com/telepenin/claudicle.git
+cd claudicle
 ```
 
 ### 2. Start ClickHouse

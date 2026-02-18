@@ -7,7 +7,7 @@ export function Header() {
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
         <div className="flex items-center gap-2 font-semibold">
           <Activity className="h-5 w-5" />
-          <span>Claude Logs</span>
+          <span>Claudicle</span>
         </div>
         <nav className="flex items-center gap-4">
           <NavLink href="/">Dashboard</NavLink>

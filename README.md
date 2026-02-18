@@ -1,6 +1,6 @@
-# Claude Log Collection
+# Claudicle
 
-Open-source tool to collect and visualize [Claude Code](https://claude.ai/code) session telemetry. Run a Docker Compose stack, point Claude Code's built-in OpenTelemetry export at it, and browse your sessions in a web UI.
+The chronicles of Claude. Open-source tool to collect and visualize [Claude Code](https://claude.ai/code) session telemetry. Run a Docker Compose stack, point Claude Code's built-in OpenTelemetry export at it, and browse your sessions in a web UI.
 
 ## Architecture
 
@@ -18,8 +18,8 @@ Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickH
 ### 1. Start the stack
 
 ```bash
-git clone https://github.com/you/claude-log-collection
-cd claude-log-collection
+git clone https://github.com/telepenin/claudicle
+cd claudicle
 docker compose up -d
 ```
 

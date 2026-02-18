@@ -3,8 +3,8 @@ import { Header } from "@/components/header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Claude Log Collection",
-  description: "Collect and visualize Claude Code session telemetry",
+  title: "Claudicle",
+  description: "The chronicles of Claude — collect and visualize Claude Code session telemetry",
 };
 
 export default function RootLayout({

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Claude Log Collection is an open-source tool to collect and visualize Claude Code session telemetry. Docker Compose runs ClickHouse + Next.js App. OTel Collector (otelcol-contrib) runs locally on the host (receives OTLP + tails JSONL files → exports to ClickHouse).
+Claudicle (Claude + Chronicle) is an open-source tool to collect and visualize Claude Code session telemetry. Docker Compose runs ClickHouse + Next.js App. OTel Collector (otelcol-contrib) runs locally on the host (receives OTLP + tails JSONL files → exports to ClickHouse).
 
 Two data sources:
 - **OTel events/metrics** — structured operational data (costs, tokens, tool stats) via Claude Code's built-in OTel export
