@@ -71,8 +71,9 @@ export async function getSessionList(params: {
           toFloat64OrZero(LogAttributes['output_tokens']),
           LogAttributes['event.name'] = 'api_request'
         ) as total_output_tokens,
-        anyIf(
+        argMaxIf(
           LogAttributes['model'],
+          toFloat64OrZero(LogAttributes['cost_usd']),
           LogAttributes['event.name'] = 'api_request' AND LogAttributes['model'] != ''
         ) as model
       FROM otel_logs
@@ -140,8 +141,9 @@ export async function getSessionDetail(
             toFloat64OrZero(LogAttributes['output_tokens']),
             LogAttributes['event.name'] = 'api_request'
           ) as total_output_tokens,
-          anyIf(
+          argMaxIf(
             LogAttributes['model'],
+            toFloat64OrZero(LogAttributes['cost_usd']),
             LogAttributes['event.name'] = 'api_request' AND LogAttributes['model'] != ''
           ) as model
         FROM otel_logs
@@ -316,7 +318,7 @@ export async function getLogSessionList(params: {
 
   if (params.search) {
     whereClause +=
-      " AND (LogAttributes['sessionId'] LIKE {search:String} OR ResourceAttributes['log.file.path'] LIKE {search:String})";
+      " AND (LogAttributes['sessionId'] LIKE {search:String} OR LogAttributes['log.file.path'] LIKE {search:String})";
     queryParams.search = `%${params.search}%`;
   }
   if (params.from) {
@@ -346,7 +348,7 @@ export async function getLogSessionList(params: {
         countIf(LogAttributes['type'] = 'user') as user_count,
         countIf(LogAttributes['type'] = 'assistant') as assistant_count,
         countIf(LogAttributes['type'] NOT IN ('user', 'assistant')) as tool_count,
-        any(ResourceAttributes['log.file.path']) as project_path
+        any(LogAttributes['log.file.path']) as project_path
       FROM otel_logs
       ${whereClause}
       GROUP BY LogAttributes['sessionId']
@@ -373,7 +375,7 @@ export async function getLogConversation(
         LogAttributes['type'] as msg_type,
         Timestamp as msg_timestamp,
         Body as raw,
-        ResourceAttributes['log.file.path'] as file
+        LogAttributes['log.file.path'] as file
       FROM otel_logs
       WHERE ResourceAttributes['source'] = 'claude_jsonl'
         AND LogAttributes['sessionId'] = {sessionId:String}

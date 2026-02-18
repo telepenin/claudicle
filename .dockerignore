@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+*.md
+scripts
+otel_dump.py
+clickhouse
+vector.toml
+docker-compose.yml

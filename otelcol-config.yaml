@@ -12,22 +12,38 @@ receivers:
   filelog/sessions:
     include:
       - ${env:HOME}/.claude/projects/**/*.jsonl
+    storage: file_storage
     start_at: beginning
     include_file_path: true
-    poll_interval: 1s
+    poll_interval: 2s
+    max_concurrent_files: 100
+    max_batches: 10
     operators:
       - type: json_parser
         parse_from: body
         parse_to: attributes
         timestamp:
           parse_from: attributes.timestamp
-          layout: "%Y-%m-%dT%H:%M:%S.%L"
-          layout_type: strptime
+          layout: "2006-01-02T15:04:05.000Z07:00"
+          layout_type: gotime
+
+extensions:
+  file_storage:
+    directory: ${env:HOME}/.claude-otelcol-storage
 
 processors:
   batch:
     send_batch_size: 5000
     timeout: 5s
+
+  batch/sessions:
+    send_batch_size: 500
+    timeout: 5s
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1024
+    spike_limit_mib: 256
 
   resource/sessions:
     attributes:
@@ -37,6 +53,12 @@ processors:
       - key: service.name
         value: claude-jsonl
         action: insert
+
+  transform/sessions:
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["log.file.path"], attributes["log.file.path"])
 
 exporters:
   clickhouse:
@@ -56,23 +78,24 @@ exporters:
     verbosity: basic
 
 service:
+  extensions: [file_storage]
   telemetry:
     logs:
       level: info
   pipelines:
     logs/otel:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [clickhouse]
     logs/sessions:
       receivers: [filelog/sessions]
-      processors: [resource/sessions, batch]
+      processors: [memory_limiter, resource/sessions, transform/sessions, batch/sessions]
       exporters: [clickhouse]
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [clickhouse]
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [clickhouse]

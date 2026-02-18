@@ -1,0 +1,192 @@
+# Vector pipeline: OTLP + JSONL files → ClickHouse
+
+data_dir = "${HOME}/.vector"
+
+# ============================================================
+# Sources
+# ============================================================
+
+[sources.otel]
+type = "opentelemetry"
+grpc.address = "0.0.0.0:4317"
+http.address = "0.0.0.0:4318"
+
+[sources.jsonl_logs]
+type = "file"
+# Adjust this path if your Claude projects live elsewhere
+include = ["${HOME}/.claude/projects/**/*.jsonl"]
+read_from = "beginning"
+fingerprint.strategy = "device_and_inode"
+glob_minimum_cooldown_ms = 5000
+
+# ============================================================
+# Transforms — OTel logs (events)
+# ============================================================
+
+# Vector's opentelemetry source outputs logs on the ".logs" port.
+# The OTLP structure is flattened: attributes become top-level fields.
+[transforms.otel_logs_transform]
+type = "remap"
+inputs = ["otel.logs"]
+source = '''
+  # Extract core fields — del() returns null if missing, to_string() coerces
+  # Claude Code uses "event.name" as the OTLP attribute key
+  .event_name = to_string(del(.attributes."event.name")) ?? ""
+  .session_id = to_string(del(.attributes."session.id")) ?? ""
+  .event_sequence = to_int(del(.attributes."event.sequence")) ?? 0
+  .user_account_uuid = to_string(del(.attributes."user.account_uuid")) ?? ""
+  .organization_id = to_string(del(.attributes."organization.id")) ?? ""
+  .terminal_type = to_string(del(.attributes."terminal.type")) ?? ""
+
+  # Severity & scope
+  .severity_text = to_string(.severity_text) ?? ""
+  .scope_name = to_string(del(.scope.name)) ?? ""
+
+  # Resource attributes → top-level
+  .service_name = to_string(del(.resources."service.name")) ?? ""
+  .service_version = to_string(del(.resources."service.version")) ?? ""
+  .os_type = to_string(del(.resources."os.type")) ?? ""
+  .host_arch = to_string(del(.resources."host.arch")) ?? ""
+
+  # Remaining attributes stay as a map — coerce all values to strings
+  attrs = {}
+  if exists(.attributes) {
+    for_each(object!(.attributes)) -> |key, val| {
+      attrs = set!(attrs, [key], to_string(val) ?? "")
+    }
+  }
+  .attributes = attrs
+
+  # Clean up fields ClickHouse doesn't need
+  del(.resources)
+  del(.scope)
+  del(.source_type)
+  del(.dropped_attributes_count)
+  del(.flags)
+  del(.observed_timestamp)
+  del(.severity_number)
+'''
+
+# ============================================================
+# Transforms — OTel metrics
+# ============================================================
+
+# Vector's opentelemetry source outputs metrics on the ".metrics" port
+# as native Vector metric objects. Convert them to logs first.
+[transforms.metrics_to_logs]
+type = "metric_to_log"
+inputs = ["otel.metrics"]
+
+[transforms.metrics_flatten]
+type = "remap"
+inputs = ["metrics_to_logs"]
+source = '''
+  .metric_name = to_string(.name) ?? ""
+  .metric_unit = to_string(.tags.unit) ?? ""
+  .session_id = to_string(del(.tags."session.id")) ?? ""
+  .user_account_uuid = to_string(del(.tags."user.account_uuid")) ?? ""
+  .organization_id = to_string(del(.tags."organization.id")) ?? ""
+  .type = to_string(del(.tags.type)) ?? ""
+  .model = to_string(del(.tags.model)) ?? ""
+  .tool = to_string(del(.tags.tool)) ?? ""
+  .decision = to_string(del(.tags.decision)) ?? ""
+  .language = to_string(del(.tags.language)) ?? ""
+
+  # Extract the numeric value from the metric
+  if exists(.counter) {
+    .value = to_float(.counter.value) ?? 0.0
+  } else if exists(.gauge) {
+    .value = to_float(.gauge.value) ?? 0.0
+  } else if exists(.distribution) {
+    .value = to_float(.distribution.sum) ?? 0.0
+  } else if exists(.histogram) {
+    .value = to_float(.histogram.sum) ?? 0.0
+  } else {
+    .value = 0.0
+  }
+
+  .start_timestamp = .timestamp
+
+  # Clean up
+  del(.counter)
+  del(.gauge)
+  del(.distribution)
+  del(.histogram)
+  del(.summary)
+  del(.sketch)
+  del(.kind)
+  del(.name)
+  del(.namespace)
+  del(.tags)
+  del(.source_type)
+  del(.interval_ms)
+'''
+
+# ============================================================
+# Transforms — JSONL session logs
+# ============================================================
+
+[transforms.jsonl_transform]
+type = "remap"
+inputs = ["jsonl_logs"]
+source = '''
+  .raw = to_string(.message) ?? ""
+
+  # Parse just enough for the ORDER BY columns
+  parsed, err = parse_json(.raw)
+  if err == null {
+    .session_id = to_string(parsed.sessionId) ?? ""
+    .msg_type = to_string(parsed.type) ?? ""
+    ts = to_string(parsed.timestamp) ?? ""
+    if ts != "" {
+      .msg_timestamp, err = parse_timestamp(ts, "%+")
+      if err != null {
+        .msg_timestamp = now()
+      }
+    } else {
+      .msg_timestamp = now()
+    }
+  } else {
+    .session_id = ""
+    .msg_type = ""
+    .msg_timestamp = now()
+  }
+
+  # Vector's file source provides .file with the source path
+  .file = to_string(.file) ?? ""
+
+  del(.message)
+  del(.host)
+  del(.source_type)
+'''
+
+# ============================================================
+# Sinks
+# ============================================================
+
+[sinks.clickhouse_events]
+type = "clickhouse"
+inputs = ["otel_logs_transform"]
+endpoint = "http://${CLICKHOUSE_USER:-claude}:${CLICKHOUSE_PASSWORD:-claude}@${CLICKHOUSE_HOST:-localhost}:8123"
+database = "claude_logs"
+table = "otel_events"
+skip_unknown_fields = true
+date_time_best_effort = true
+
+[sinks.clickhouse_metrics]
+type = "clickhouse"
+inputs = ["metrics_flatten"]
+endpoint = "http://${CLICKHOUSE_USER:-claude}:${CLICKHOUSE_PASSWORD:-claude}@${CLICKHOUSE_HOST:-localhost}:8123"
+database = "claude_logs"
+table = "otel_metrics"
+skip_unknown_fields = true
+date_time_best_effort = true
+
+[sinks.clickhouse_sessions]
+type = "clickhouse"
+inputs = ["jsonl_transform"]
+endpoint = "http://${CLICKHOUSE_USER:-claude}:${CLICKHOUSE_PASSWORD:-claude}@${CLICKHOUSE_HOST:-localhost}:8123"
+database = "claude_logs"
+table = "session_logs"
+skip_unknown_fields = true
+date_time_best_effort = true

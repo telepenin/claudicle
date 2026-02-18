@@ -1,0 +1,21 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-claude}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-claude}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-claude_logs}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "${CLICKHOUSE_USER:-claude}", "--password", "${CLICKHOUSE_PASSWORD:-claude}", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  clickhouse_data:
