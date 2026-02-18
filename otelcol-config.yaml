@@ -1,0 +1,78 @@
+# OpenTelemetry Collector config: OTLP + JSONL session logs → ClickHouse
+# Replaces vector.toml — uses otelcol-contrib with the ClickHouse exporter.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  filelog/sessions:
+    include:
+      - ${env:HOME}/.claude/projects/**/*.jsonl
+    start_at: beginning
+    include_file_path: true
+    poll_interval: 1s
+    operators:
+      - type: json_parser
+        parse_from: body
+        parse_to: attributes
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: "%Y-%m-%dT%H:%M:%S.%L"
+          layout_type: strptime
+
+processors:
+  batch:
+    send_batch_size: 5000
+    timeout: 5s
+
+  resource/sessions:
+    attributes:
+      - key: source
+        value: claude_jsonl
+        action: insert
+      - key: service.name
+        value: claude-jsonl
+        action: insert
+
+exporters:
+  clickhouse:
+    endpoint: tcp://127.0.0.1:9000?dial_timeout=10s
+    username: ${env:CLICKHOUSE_USER:-claude}
+    password: ${env:CLICKHOUSE_PASSWORD:-claude}
+    database: claude_logs
+    create_schema: true
+    async_insert: true
+    compress: lz4
+    logs_table_name: otel_logs
+    traces_table_name: otel_traces
+    retry_on_failure:
+      enabled: true
+
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    logs/otel:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouse]
+    logs/sessions:
+      receivers: [filelog/sessions]
+      processors: [resource/sessions, batch]
+      exporters: [clickhouse]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouse]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouse]
