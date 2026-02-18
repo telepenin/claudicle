@@ -188,7 +188,7 @@ interface TaskGroup {
  * Returns a map: startIdx → TaskGroup for the leader of each run,
  * and a set of indices that are part of a group (to skip during normal render).
  */
-function groupTaskBlocks(blocks: ParsedContent[]): {
+export function groupTaskBlocks(blocks: ParsedContent[]): {
   groups: Map<number, TaskGroup>;
   grouped: Set<number>;
 } {
@@ -261,7 +261,7 @@ function groupTaskBlocks(blocks: ParsedContent[]): {
   return { groups, grouped };
 }
 
-function statusIcon(status: string) {
+export function statusIcon(status: string) {
   switch (status) {
     case "completed": return "✓";
     case "in_progress": return "▶";
@@ -270,7 +270,7 @@ function statusIcon(status: string) {
   }
 }
 
-function statusClass(status: string) {
+export function statusClass(status: string) {
   switch (status) {
     case "completed": return "text-green-600";
     case "in_progress": return "text-blue-600";
