@@ -478,7 +478,26 @@ Conversation compaction event — inserted when context window is nearly full.
 
 ## 10. Message Type: `queue-operation`
 
-Task queue operations for subagent management.
+Task queue operations for subagent and background task management.
+
+#### Operation: `dequeue`
+
+Signals that a task slot is available. Has no `content` field.
+
+```json
+{
+  "type": "queue-operation",
+  "operation": "dequeue",
+  "timestamp": "2026-02-17T23:25:14.532Z",
+  "sessionId": "443661e2-..."
+}
+```
+
+#### Operation: `enqueue`
+
+Queues a new task. The `content` field has two observed formats:
+
+**Format 1: Subagent task (JSON)**
 
 ```json
 {
@@ -492,16 +511,26 @@ Task queue operations for subagent management.
 
 | Field | Type | Description |
 |---|---|---|
-| `operation` | string | Queue operation (observed: `"enqueue"`) |
-| `content` | string (JSON) | Serialized task descriptor — must be JSON-parsed |
-
-#### Queue content object (after parsing)
-
-| Field | Type | Description |
-|---|---|---|
 | `task_id` | string | Short hash task ID matching subagent filename |
 | `description` | string | Human-readable task description |
 | `task_type` | string | Task type (observed: `"local_agent"`) |
+
+**Format 2: Background task notification (XML-like)**
+
+```json
+{
+  "type": "queue-operation",
+  "operation": "enqueue",
+  "timestamp": "2026-02-17T23:34:01.897Z",
+  "sessionId": "443661e2-...",
+  "content": "<task-notification>\n<task-id>b38ec1b</task-id>\n<output-file>/private/tmp/.../tasks/b38ec1b.output</output-file>\n<status>completed</status>\n<summary>Background command \"Find Maven binary location\" completed (exit code 0)</summary>\n</task-notification>\n..."
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `operation` | string | `"enqueue"` or `"dequeue"` |
+| `content` | string ǀ undefined | Serialized task descriptor (JSON or XML-like); absent for `dequeue` |
 
 ---
 

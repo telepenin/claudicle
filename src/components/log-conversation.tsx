@@ -397,6 +397,93 @@ function groupIntoTurns(
   return turns;
 }
 
+// ─── Subagent helpers ─────────────────────────────────────────────────────
+
+function splitMainAndSubagent(messages: LogMessage[]): {
+  mainMessages: LogMessage[];
+  subagentMap: Map<string, LogMessage[]>;
+} {
+  const mainMessages: LogMessage[] = [];
+  const subagentMap = new Map<string, LogMessage[]>();
+
+  for (const msg of messages) {
+    if (msg.is_sidechain && msg.agent_id) {
+      let arr = subagentMap.get(msg.agent_id);
+      if (!arr) {
+        arr = [];
+        subagentMap.set(msg.agent_id, arr);
+      }
+      arr.push(msg);
+    } else {
+      mainMessages.push(msg);
+    }
+  }
+
+  return { mainMessages, subagentMap };
+}
+
+function getFirstUserPromptText(messages: LogMessage[]): string {
+  for (const msg of messages) {
+    if (msg.msg_type !== "user") continue;
+    try {
+      const parsed = JSON.parse(msg.raw);
+      const m = parsed.message;
+      if (!m) continue;
+      if (typeof m.content === "string") return m.content;
+      if (Array.isArray(m.content)) {
+        const textBlock = m.content.find(
+          (b: ParsedContent) => b.type === "text" && b.text
+        );
+        if (textBlock?.text) return textBlock.text;
+      }
+      if (typeof m === "string") return m;
+    } catch {
+      // skip
+    }
+  }
+  return "";
+}
+
+function buildTaskToSubagentMap(
+  mainMessages: LogMessage[],
+  subagentMap: Map<string, LogMessage[]>
+): Map<string, string> {
+  // Map<tool_use_id, agentId>
+  const result = new Map<string, string>();
+
+  // Collect all Task tool_use blocks with their prompt text and id
+  const taskBlocks: { toolUseId: string; prompt: string }[] = [];
+  for (const msg of mainMessages) {
+    if (msg.msg_type !== "assistant") continue;
+    const { content } = parseMessage(msg.raw);
+    for (const block of content) {
+      if (block.type === "tool_use" && block.name === "Task" && block.id) {
+        const input = (block.input as Record<string, unknown>) ?? {};
+        const prompt = (input.prompt as string) ?? "";
+        if (prompt) {
+          taskBlocks.push({ toolUseId: block.id, prompt });
+        }
+      }
+    }
+  }
+
+  // Match each subagent's first user prompt to a Task block's prompt
+  for (const [agentId, msgs] of subagentMap) {
+    const firstPrompt = getFirstUserPromptText(msgs);
+    if (!firstPrompt) continue;
+
+    for (const task of taskBlocks) {
+      if (result.has(task.toolUseId)) continue; // already matched
+      if (task.prompt === firstPrompt) {
+        result.set(task.toolUseId, agentId);
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 // ─── Markdown component ──────────────────────────────────────────────────
 
 function Markdown({ text }: { text: string }) {
@@ -933,10 +1020,19 @@ function CollapsibleMarkdown({
   );
 }
 
-function TaskToolCall({ input }: { input: Record<string, unknown> }) {
+function TaskToolCall({
+  input,
+  resultContent,
+  subagentMessages,
+}: {
+  input: Record<string, unknown>;
+  resultContent?: string;
+  subagentMessages?: LogMessage[];
+}) {
   const subagentType = (input.subagent_type as string) ?? "";
   const description = (input.description as string) ?? "";
   const prompt = (input.prompt as string) ?? "";
+  const [showResult, setShowResult] = useState(false);
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -952,6 +1048,85 @@ function TaskToolCall({ input }: { input: Record<string, unknown> }) {
       </div>
       {prompt && (
         <CollapsibleMarkdown text={prompt} maxLines={8} />
+      )}
+      {subagentMessages && subagentMessages.length > 0 && (
+        <SubagentConversation messages={subagentMessages} />
+      )}
+      {resultContent && (
+        <div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowResult(!showResult)}
+          >
+            {showResult ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            <span>Result</span>
+          </button>
+          {showResult && (
+            <div className="mt-1 rounded-md bg-white dark:bg-background p-3">
+              <CollapsibleMarkdown text={resultContent} maxLines={20} defaultOpen={true} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubagentConversation({ messages }: { messages: LogMessage[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const turns = useMemo(() => groupIntoTurns(messages), [messages]);
+
+  const stats = useMemo(() => {
+    let turnCount = 0;
+    let toolCalls = 0;
+    for (const turn of turns) {
+      if (turn.kind === "assistant_turn") {
+        turnCount++;
+        toolCalls += turn.contentBlocks.filter(
+          (b) => b.type === "tool_use"
+        ).length;
+      }
+      if (turn.kind === "user_prompt") turnCount++;
+    }
+    return { turnCount, toolCalls };
+  }, [turns]);
+
+  return (
+    <div className="mt-2 border-l-2 border-indigo-400 ml-2 pl-3">
+      <button
+        className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+        <Bot className="h-3 w-3" />
+        <span className="font-medium">
+          Subagent: {stats.turnCount} turns, {stats.toolCalls} tool calls
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-3">
+          {turns.map((turn, i) => {
+            switch (turn.kind) {
+              case "user_prompt":
+                return <UserPromptCard key={i} turn={turn} />;
+              case "assistant_turn":
+                return <AssistantTurnCard key={i} turn={turn} />;
+              case "compact_summary":
+                return <CompactSummaryBanner key={i} turn={turn} />;
+              case "turn_separator":
+                return <TurnSeparator key={i} turn={turn} />;
+            }
+          })}
+        </div>
       )}
     </div>
   );
@@ -1180,7 +1355,8 @@ function GenericToolCall({
 function renderToolCallContent(
   name: string,
   input: Record<string, unknown>,
-  resultContent?: string
+  resultContent?: string,
+  subagentMessages?: LogMessage[]
 ) {
   switch (name) {
     case "Write":
@@ -1196,7 +1372,7 @@ function renderToolCallContent(
     case "Grep":
       return <GrepToolCall input={input} resultContent={resultContent} />;
     case "Task":
-      return <TaskToolCall input={input} />;
+      return <TaskToolCall input={input} resultContent={resultContent} subagentMessages={subagentMessages} />;
     case "WebSearch":
       return <WebSearchToolCall input={input} resultContent={resultContent} />;
     case "WebFetch":
@@ -1251,14 +1427,16 @@ const TOOL_COLORS: Record<string, { border: string; bg: string }> = {
 const DEFAULT_TOOL_COLOR = { border: "border-gray-400", bg: "bg-gray-50 dark:bg-gray-950/20" };
 
 // Tools that render their own result content (skip generic result toggle)
-const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch"]);
+const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch", "Task"]);
 
 function ToolUseBlock({
   block,
   resultInfo,
+  subagentMessages,
 }: {
   block: ParsedContent;
   resultInfo?: ToolResultInfo;
+  subagentMessages?: LogMessage[];
 }) {
   const name = block.name ?? "tool";
   const input = (block.input as Record<string, unknown>) ?? {};
@@ -1273,39 +1451,46 @@ function ToolUseBlock({
       {renderToolCallContent(
         name,
         input,
-        selfRendering ? resultInfo?.content : undefined
+        selfRendering ? resultInfo?.content : undefined,
+        name === "Task" ? subagentMessages : undefined
       )}
       {resultInfo && !selfRendering && (
         <div className="mt-1.5">
-          <button
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowResult(!showResult)}
-          >
-            {showResult ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-            <span>
-              {resultInfo.isError ? "Error" : "Result"}
-              {resultInfo.content
-                ? ` (${countLines(resultInfo.content)} lines)`
-                : ""}
+          {resultInfo.content ? (
+            <>
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setShowResult(!showResult)}
+              >
+                {showResult ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                <span>
+                  {resultInfo.isError ? "Error" : "Result"}
+                  {` (${countLines(resultInfo.content)} lines)`}
+                </span>
+                {resultInfo.isError && (
+                  <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
+                    error
+                  </Badge>
+                )}
+              </button>
+              {showResult && (
+                <div className="mt-1 rounded-md bg-background">
+                  <CollapsibleContent
+                    text={resultInfo.content}
+                    maxLines={20}
+                    defaultOpen={true}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {resultInfo.isError ? "Error (no output)" : "Done (no output)"}
             </span>
-            {resultInfo.isError && (
-              <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
-                error
-              </Badge>
-            )}
-          </button>
-          {showResult && resultInfo.content && (
-            <div className="mt-1">
-              <CollapsibleContent
-                text={resultInfo.content}
-                maxLines={20}
-                defaultOpen={true}
-              />
-            </div>
           )}
         </div>
       )}
@@ -1356,9 +1541,13 @@ function ToolResultBlock({ block }: { block: ParsedContent }) {
 function ContentBlocks({
   blocks,
   toolResults,
+  taskToSubagent,
+  subagentMap,
 }: {
   blocks: ParsedContent[];
   toolResults: Map<string, ToolResultInfo>;
+  taskToSubagent?: Map<string, string>;
+  subagentMap?: Map<string, LogMessage[]>;
 }) {
   return (
     <>
@@ -1370,16 +1559,23 @@ function ContentBlocks({
           const result = block.id
             ? toolResults.get(block.id)
             : undefined;
+          let subMsgs: LogMessage[] | undefined;
+          if (block.name === "Task" && block.id && taskToSubagent && subagentMap) {
+            const agentId = taskToSubagent.get(block.id);
+            if (agentId) {
+              subMsgs = subagentMap.get(agentId);
+            }
+          }
           return (
             <ToolUseBlock
               key={i}
               block={block}
               resultInfo={result}
+              subagentMessages={subMsgs}
             />
           );
         }
         if (block.type === "tool_result") {
-          // Orphaned tool_result — shouldn't normally appear in turn-based view
           return <ToolResultBlock key={i} block={block} />;
         }
         if ((block.type === "text" || !block.type) && block.text) {
@@ -1471,8 +1667,12 @@ function computeTurnDuration(turn: Extract<Turn, { kind: "assistant_turn" }>): n
 
 function AssistantTurnCard({
   turn,
+  taskToSubagent,
+  subagentMap,
 }: {
   turn: Extract<Turn, { kind: "assistant_turn" }>;
+  taskToSubagent?: Map<string, string>;
+  subagentMap?: Map<string, LogMessage[]>;
 }) {
   const durationMs = useMemo(() => computeTurnDuration(turn), [turn]);
 
@@ -1502,6 +1702,8 @@ function AssistantTurnCard({
             <ContentBlocks
               blocks={turn.contentBlocks}
               toolResults={turn.toolResults}
+              taskToSubagent={taskToSubagent}
+              subagentMap={subagentMap}
             />
           ) : (
             <p className="text-sm text-muted-foreground italic">
@@ -1614,7 +1816,7 @@ function ConversationSummary({ messages }: { messages: LogMessage[] }) {
 
 function RawJsonlView({ messages }: { messages: LogMessage[] }) {
   return (
-    <div className="space-y-1">
+    <div className="divide-y divide-border">
       {messages.map((msg, i) => {
         let formatted = msg.raw;
         try {
@@ -1623,14 +1825,16 @@ function RawJsonlView({ messages }: { messages: LogMessage[] }) {
           // keep raw
         }
         return (
-          <div key={`${msg.msg_timestamp}-${i}`}>
+          <div key={`${msg.msg_timestamp}-${i}`} className="py-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-0.5">
               <span className="font-mono">{msg.msg_type}</span>
               <span>
                 {new Date(msg.msg_timestamp).toLocaleTimeString()}
               </span>
             </div>
-            <CollapsibleContent text={formatted} maxLines={25} />
+            <pre className="overflow-auto rounded-md bg-background p-3 text-xs whitespace-pre-wrap">
+              {formatted}
+            </pre>
           </div>
         );
       })}
@@ -1679,10 +1883,19 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   }, [sessionId]);
 
 
-  const turns = useMemo(() => {
-    if (!data) return [];
-    return groupIntoTurns(data.messages);
+  const { mainMessages, subagentMap } = useMemo(() => {
+    if (!data) return { mainMessages: [], subagentMap: new Map<string, LogMessage[]>() };
+    return splitMainAndSubagent(data.messages);
   }, [data]);
+
+  const turns = useMemo(() => {
+    return groupIntoTurns(mainMessages);
+  }, [mainMessages]);
+
+  const taskToSubagent = useMemo(() => {
+    if (subagentMap.size === 0) return new Map<string, string>();
+    return buildTaskToSubagentMap(mainMessages, subagentMap);
+  }, [mainMessages, subagentMap]);
 
   if (loading) {
     return (
@@ -1711,7 +1924,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
 
   return (
     <div>
-      <ConversationSummary messages={data.messages} />
+      <ConversationSummary messages={mainMessages} />
 
       {/* Controls bar */}
       <div className="mb-4 flex items-center gap-3 flex-wrap">
@@ -1743,7 +1956,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
 
       {/* Content */}
       {viewMode === "raw" ? (
-        <RawJsonlView messages={data.messages} />
+        <RawJsonlView messages={mainMessages} />
       ) : (
         <div className="space-y-4">
           {turns.map((turn, i) => {
@@ -1751,7 +1964,14 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
               case "user_prompt":
                 return <UserPromptCard key={i} turn={turn} />;
               case "assistant_turn":
-                return <AssistantTurnCard key={i} turn={turn} />;
+                return (
+                  <AssistantTurnCard
+                    key={i}
+                    turn={turn}
+                    taskToSubagent={taskToSubagent}
+                    subagentMap={subagentMap}
+                  />
+                );
               case "compact_summary":
                 return <CompactSummaryBanner key={i} turn={turn} />;
               case "turn_separator":

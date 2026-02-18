@@ -99,6 +99,7 @@ export interface LogSessionSummary {
   assistant_count: number;
   tool_count: number;
   project_path: string;
+  subagent_count: number;
 }
 
 export interface LogListResponse {
@@ -114,6 +115,8 @@ export interface LogMessage {
   msg_timestamp: string;
   raw: string;
   file: string;
+  is_sidechain: boolean;
+  agent_id: string;
 }
 
 export interface LogConversation {

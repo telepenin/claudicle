@@ -312,26 +312,77 @@ export async function getLogSessionList(params: {
   const limit = params.limit ?? 20;
   const offset = (page - 1) * limit;
 
-  let whereClause =
-    "WHERE ResourceAttributes['source'] = 'claude_jsonl' AND LogAttributes['sessionId'] != ''";
+  const hasFilters = params.search || params.from || params.to;
+
+  // Fast path: use pre-aggregated MV when no filters
+  if (!hasFilters) {
+    const [countResult, result, subagentResult] = await Promise.all([
+      clickhouse.query({
+        query: `SELECT count() as total FROM (SELECT session_id FROM mv_jsonl_sessions GROUP BY session_id)`,
+        format: "JSONEachRow",
+      }),
+      clickhouse.query({
+        query: `
+          SELECT
+            session_id,
+            minMerge(first_ts) AS first_timestamp,
+            maxMerge(last_ts) AS last_timestamp,
+            countMerge(message_count) AS message_count,
+            countIfMerge(user_count) AS user_count,
+            countIfMerge(assistant_count) AS assistant_count,
+            countIfMerge(other_count) AS tool_count,
+            anyMerge(project_path) AS project_path
+          FROM mv_jsonl_sessions
+          GROUP BY session_id
+          ORDER BY first_timestamp DESC
+          LIMIT {limit:UInt32}
+          OFFSET {offset:UInt32}
+        `,
+        query_params: { limit, offset },
+        format: "JSONEachRow",
+      }),
+      clickhouse.query({
+        query: `
+          SELECT session_id, uniq(agent_id) as subagent_count
+          FROM mv_jsonl_messages
+          WHERE is_sidechain = 1 AND agent_id != ''
+          GROUP BY session_id
+        `,
+        format: "JSONEachRow",
+      }),
+    ]);
+
+    const countRows = await countResult.json<{ total: string }>();
+    const total = Number(countRows[0]?.total ?? 0);
+    const sessions = await result.json<LogSessionSummary>();
+    const subagentRows = await subagentResult.json<{ session_id: string; subagent_count: string }>();
+    const subagentMap = new Map(subagentRows.map((r) => [r.session_id, Number(r.subagent_count)]));
+    for (const s of sessions) {
+      s.subagent_count = subagentMap.get(s.session_id) ?? 0;
+    }
+    return { sessions, total, page, limit };
+  }
+
+  // Filtered path: use messages MV with typed columns (no map access)
+  let whereClause = "WHERE 1=1";
   const queryParams: Record<string, string | number> = {};
 
   if (params.search) {
     whereClause +=
-      " AND (LogAttributes['sessionId'] LIKE {search:String} OR LogAttributes['log.file.path'] LIKE {search:String})";
+      " AND (session_id LIKE {search:String} OR file_path LIKE {search:String})";
     queryParams.search = `%${params.search}%`;
   }
   if (params.from) {
-    whereClause += " AND Timestamp >= {from:DateTime64(9)}";
+    whereClause += " AND msg_timestamp >= {from:DateTime64(9)}";
     queryParams.from = params.from;
   }
   if (params.to) {
-    whereClause += " AND Timestamp <= {to:DateTime64(9)}";
+    whereClause += " AND msg_timestamp <= {to:DateTime64(9)}";
     queryParams.to = params.to;
   }
 
   const countResult = await clickhouse.query({
-    query: `SELECT count(DISTINCT LogAttributes['sessionId']) as total FROM otel_logs ${whereClause}`,
+    query: `SELECT count(DISTINCT session_id) as total FROM mv_jsonl_messages ${whereClause}`,
     query_params: queryParams,
     format: "JSONEachRow",
   });
@@ -341,17 +392,18 @@ export async function getLogSessionList(params: {
   const result = await clickhouse.query({
     query: `
       SELECT
-        LogAttributes['sessionId'] as session_id,
-        min(Timestamp) as first_timestamp,
-        max(Timestamp) as last_timestamp,
+        session_id,
+        min(msg_timestamp) as first_timestamp,
+        max(msg_timestamp) as last_timestamp,
         count() as message_count,
-        countIf(LogAttributes['type'] = 'user') as user_count,
-        countIf(LogAttributes['type'] = 'assistant') as assistant_count,
-        countIf(LogAttributes['type'] NOT IN ('user', 'assistant')) as tool_count,
-        any(LogAttributes['log.file.path']) as project_path
-      FROM otel_logs
+        countIf(msg_type = 'user') as user_count,
+        countIf(msg_type = 'assistant') as assistant_count,
+        countIf(msg_type NOT IN ('user', 'assistant')) as tool_count,
+        any(file_path) as project_path,
+        uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count
+      FROM mv_jsonl_messages
       ${whereClause}
-      GROUP BY LogAttributes['sessionId']
+      GROUP BY session_id
       ORDER BY first_timestamp DESC
       LIMIT {limit:UInt32}
       OFFSET {offset:UInt32}
@@ -371,15 +423,16 @@ export async function getLogConversation(
   const result = await clickhouse.query({
     query: `
       SELECT
-        LogAttributes['sessionId'] as session_id,
-        LogAttributes['type'] as msg_type,
-        Timestamp as msg_timestamp,
-        Body as raw,
-        LogAttributes['log.file.path'] as file
-      FROM otel_logs
-      WHERE ResourceAttributes['source'] = 'claude_jsonl'
-        AND LogAttributes['sessionId'] = {sessionId:String}
-      ORDER BY Timestamp ASC
+        session_id,
+        msg_type,
+        msg_timestamp,
+        raw,
+        file_path as file,
+        is_sidechain,
+        agent_id
+      FROM mv_jsonl_messages
+      WHERE session_id = {sessionId:String}
+      ORDER BY msg_timestamp ASC
     `,
     query_params: { sessionId },
     format: "JSONEachRow",
