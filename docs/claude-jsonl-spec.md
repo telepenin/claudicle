@@ -163,6 +163,13 @@ When `message.content` is an array of `tool_result` blocks, this message deliver
         "is_error": false
       }
     ]
+  },
+  "toolUseResult": {
+    "stdout": "",
+    "stderr": "",
+    "interrupted": false,
+    "isImage": false,
+    "noOutputExpected": true
   }
 }
 ```
@@ -173,6 +180,18 @@ When `message.content` is an array of `tool_result` blocks, this message deliver
 |---|---|---|
 | `parentUuid` | string (UUID) | Points to the assistant message that issued the `tool_use` |
 | `sourceToolAssistantUUID` | string (UUID) | Same as `parentUuid` — explicitly names the originating assistant message |
+
+#### `toolUseResult` field
+
+Present on tool result delivery messages. Contains execution metadata beyond the `tool_result` content block.
+
+| Field | Type | Description |
+|---|---|---|
+| `toolUseResult.stdout` | string | Standard output from the tool execution |
+| `toolUseResult.stderr` | string | Standard error from the tool execution |
+| `toolUseResult.interrupted` | boolean | `true` if the tool execution was interrupted/cancelled |
+| `toolUseResult.isImage` | boolean | `true` if the result contains image data |
+| `toolUseResult.noOutputExpected` | boolean | `true` for tools that produce no output by design (e.g., `rm`) |
 
 ### Compact Summary (Context Continuation)
 
@@ -369,10 +388,16 @@ Built-in tools observed in session logs:
 | `Edit` | `file_path`, `old_string`, `new_string`, `replace_all` | String replacement in files |
 | `Glob` | `pattern`, `path` | Find files by glob pattern |
 | `Grep` | `pattern`, `path`, `glob`, `output_mode` | Search file contents |
+| `NotebookEdit` | `notebook_path`, `new_source`, `cell_type`, `edit_mode` | Edit Jupyter notebook cells |
 | `Task` | `prompt`, `description`, `subagent_type` | Launch a subagent |
 | `TaskCreate` | `subject`, `description`, `activeForm` | Create a todo task |
 | `TaskUpdate` | `taskId`, `status`, `subject`, `description` | Update a todo task |
+| `TaskGet` | `taskId` | Get a task by ID |
+| `TaskList` | _(none)_ | List all tasks |
 | `TaskOutput` | `task_id`, `block`, `timeout` | Read subagent output |
+| `TaskStop` | `task_id` | Stop a running background task |
+| `EnterPlanMode` | _(none)_ | Enter plan mode for implementation planning |
+| `ExitPlanMode` | `allowedPrompts` | Exit plan mode and request user approval |
 | `AskUserQuestion` | `questions` | Ask the user a question |
 | `Skill` | `skill`, `args` | Invoke a skill/slash command |
 
