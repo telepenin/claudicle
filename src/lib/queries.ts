@@ -343,10 +343,13 @@ export async function getLogSessionList(params: {
       }),
       clickhouse.query({
         query: `
-          SELECT session_id, uniq(agent_id) as subagent_count
+          SELECT
+            session_id,
+            uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
+            countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count
           FROM mv_jsonl_messages
-          WHERE is_sidechain = 1 AND agent_id != ''
           GROUP BY session_id
+          HAVING subagent_count > 0 OR error_count > 0
         `,
         format: "JSONEachRow",
       }),
@@ -355,10 +358,12 @@ export async function getLogSessionList(params: {
     const countRows = await countResult.json<{ total: string }>();
     const total = Number(countRows[0]?.total ?? 0);
     const sessions = await result.json<LogSessionSummary>();
-    const subagentRows = await subagentResult.json<{ session_id: string; subagent_count: string }>();
-    const subagentMap = new Map(subagentRows.map((r) => [r.session_id, Number(r.subagent_count)]));
+    const extraRows = await subagentResult.json<{ session_id: string; subagent_count: string; error_count: string }>();
+    const extraMap = new Map(extraRows.map((r) => [r.session_id, { subagent_count: Number(r.subagent_count), error_count: Number(r.error_count) }]));
     for (const s of sessions) {
-      s.subagent_count = subagentMap.get(s.session_id) ?? 0;
+      const extra = extraMap.get(s.session_id);
+      s.subagent_count = extra?.subagent_count ?? 0;
+      s.error_count = extra?.error_count ?? 0;
     }
     return { sessions, total, page, limit };
   }
@@ -400,7 +405,8 @@ export async function getLogSessionList(params: {
         countIf(msg_type = 'assistant') as assistant_count,
         countIf(msg_type NOT IN ('user', 'assistant')) as tool_count,
         any(file_path) as project_path,
-        uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count
+        uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
+        countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count
       FROM mv_jsonl_messages
       ${whereClause}
       GROUP BY session_id

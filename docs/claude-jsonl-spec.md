@@ -403,6 +403,20 @@ Built-in tools observed in session logs:
 
 MCP tools follow the pattern: `mcp__<server>__<tool>` (e.g., `mcp__plugin_playwright_playwright__browser_navigate`).
 
+### Skill Tool Message Pattern
+
+The `Skill` tool has a unique message pattern. When invoked, it produces **three** messages in quick succession:
+
+```
+Line 1:  type=assistant  content=[{type:"tool_use", id:"toolu_X", name:"Skill", input:{skill:"..."}}]
+Line 2:  type=user       content=[{type:"tool_result", tool_use_id:"toolu_X", content:"Launching skill: ..."}]
+Line 3:  type=user       content=[{type:"text", text:"Base directory for this skill: ...\n\n<skill content>"}]
+```
+
+**Important:** Lines 2 and 3 may arrive out of order — the injected skill content (line 3) can have a timestamp 1ms **before** the tool_result (line 2), even though logically the tool_result should come first. The `parentUuid` chain is correct: line 2's `parentUuid` → line 1's `uuid`, and line 3's `parentUuid` → line 2's `uuid`.
+
+This ordering anomaly requires special handling when reconstructing the conversation flow.
+
 ---
 
 ## 8. Message Type: `progress`

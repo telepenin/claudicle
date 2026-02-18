@@ -1,5 +1,5 @@
 -- Migration: Create materialized views for JSONL data
--- Run with: docker compose exec clickhouse clickhouse-client --user claude --password claude < clickhouse/migrate-views.sql
+-- Run with: curl 'http://localhost:8123/?user=claude&password=claude&database=claude_logs' --data-binary @clickhouse/migrate-views.sql
 --
 -- Safe to re-run — uses IF NOT EXISTS. If views already exist and you want
 -- to recreate them (e.g. after schema change), DROP first:

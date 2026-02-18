@@ -100,6 +100,7 @@ export interface LogSessionSummary {
   tool_count: number;
   project_path: string;
   subagent_count: number;
+  error_count: number;
 }
 
 export interface LogListResponse {

@@ -12,20 +12,24 @@ This project stores all Claude Code telemetry in a single ClickHouse table `otel
 ## Connection
 
 ```bash
-# Via docker exec (always works if compose is up)
-docker compose exec clickhouse clickhouse-client \
-  --user claude --password claude --database claude_logs
-
-# Direct CLI (if clickhouse-client installed locally)
-clickhouse-client --host localhost --port 9000 \
-  --user claude --password claude --database claude_logs
-
-# HTTP interface (used by Next.js app)
+# Preferred: curl via HTTP interface (~200x faster than docker exec)
 curl 'http://localhost:8123/?user=claude&password=claude&database=claude_logs' \
-  --data 'SELECT count() FROM otel_logs'
+  --data-binary 'SELECT count() FROM otel_logs'
+
+# For multi-line / complex queries, use a heredoc:
+curl 'http://localhost:8123/?user=claude&password=claude&database=claude_logs' \
+  --data-binary @- <<'SQL'
+SELECT session_id, count() AS cnt
+FROM mv_jsonl_messages
+GROUP BY session_id
+ORDER BY cnt DESC
+LIMIT 5
+SQL
 ```
 
-**Defaults:** user=`claude`, password=`claude`, database=`claude_logs`, native port=`9000`, HTTP port=`8123`.
+**Defaults:** user=`claude`, password=`claude`, database=`claude_logs`, HTTP port=`8123`.
+
+> **Why not `docker exec`?** Spawning a process inside the container adds ~2s overhead per query. curl to localhost:8123 hits ClickHouse's HTTP interface directly — same results in ~10ms.
 
 ## Schema: `otel_logs`
 
@@ -212,4 +216,4 @@ LIMIT 20;
 - Forgetting `toFloat64OrZero()` on numeric LogAttributes — they're stored as strings in the Map.
 - Using `LogAttributes['sessionId']` for OTel events — OTel uses `LogAttributes['session.id']` (with dot). JSONL uses `LogAttributes['sessionId']` (no dot).
 - Reading `log.file.path` from `ResourceAttributes` — the filelog receiver stores it in `LogAttributes['log.file.path']`. A transform processor copies it to ResourceAttributes, but prefer `LogAttributes` for reliability.
-- Connecting on port 8123 with `clickhouse-client` — 8123 is HTTP, native client uses 9000.
+- Using `docker compose exec clickhouse clickhouse-client` for ad-hoc queries — adds ~2s overhead per query. Use `curl localhost:8123` instead.

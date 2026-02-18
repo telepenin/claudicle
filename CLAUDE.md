@@ -40,8 +40,9 @@ npm run dev
 # Build
 npm run build
 
-# Verify pipeline is receiving data
-docker compose exec clickhouse clickhouse-client --user claude --password claude -q "SELECT count() FROM claude_logs.otel_logs"
+# Verify pipeline is receiving data (curl is ~200x faster than docker exec)
+curl 'http://localhost:8123/?user=claude&password=claude&database=claude_logs' \
+  --data-binary 'SELECT count() FROM otel_logs'
 ```
 
 ## Tech Stack

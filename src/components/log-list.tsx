@@ -22,6 +22,7 @@ import {
   Bot,
   Ellipsis,
   GitBranch,
+  AlertCircle,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
 import type { LogListResponse } from "@/lib/types";
@@ -173,6 +174,15 @@ export function LogList() {
                         >
                           <GitBranch className="h-3 w-3" />
                           {Number(s.subagent_count)}
+                        </Badge>
+                      )}
+                      {Number(s.error_count) > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 text-xs font-normal text-red-600"
+                        >
+                          <AlertCircle className="h-3 w-3" />
+                          {Number(s.error_count)}
                         </Badge>
                       )}
                     </div>
