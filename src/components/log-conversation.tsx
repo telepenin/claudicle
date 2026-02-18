@@ -466,7 +466,7 @@ function CollapsibleContent({
 
   if (!needsCollapse) {
     return (
-      <pre className="overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
+      <pre className="overflow-auto rounded-md bg-background p-3 text-xs whitespace-pre-wrap">
         {text}
       </pre>
     );
@@ -474,7 +474,7 @@ function CollapsibleContent({
 
   return (
     <div>
-      <pre className="overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
+      <pre className="overflow-auto rounded-md bg-background p-3 text-xs whitespace-pre-wrap">
         {expanded ? text : lines.slice(0, maxLines).join("\n") + "\n…"}
       </pre>
       <button
@@ -590,7 +590,7 @@ function EditToolCall({ input }: { input: Record<string, unknown> }) {
         )}
       </div>
       {diff.length > 0 && (
-        <div className="overflow-auto rounded-md bg-muted p-2 text-xs font-mono">
+        <div className="overflow-auto rounded-md bg-background p-2 text-xs font-mono">
           {diff.map((line, i) => {
             if (line.type === "del") {
               return (
@@ -901,6 +901,38 @@ function GrepToolCall({
   );
 }
 
+function CollapsibleMarkdown({
+  text,
+  maxLines = 10,
+  defaultOpen = false,
+}: {
+  text: string;
+  maxLines?: number;
+  defaultOpen?: boolean;
+}) {
+  const totalLines = text.split("\n").length;
+  const needsCollapse = totalLines > maxLines;
+  const [expanded, setExpanded] = useState(defaultOpen || !needsCollapse);
+
+  return (
+    <div>
+      {expanded ? (
+        <Markdown text={text} />
+      ) : (
+        <Markdown text={text.split("\n").slice(0, maxLines).join("\n") + "\n…"} />
+      )}
+      {needsCollapse && (
+        <button
+          className="mt-1 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? "Show less" : `Show all (${totalLines} lines)`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TaskToolCall({ input }: { input: Record<string, unknown> }) {
   const subagentType = (input.subagent_type as string) ?? "";
   const description = (input.description as string) ?? "";
@@ -919,35 +951,145 @@ function TaskToolCall({ input }: { input: Record<string, unknown> }) {
         )}
       </div>
       {prompt && (
-        <CollapsibleContent text={prompt} maxLines={5} />
+        <CollapsibleMarkdown text={prompt} maxLines={8} />
       )}
     </div>
   );
 }
 
-function WebSearchToolCall({ input }: { input: Record<string, unknown> }) {
+function parseSearchContent(text: string): { links: { title: string; url: string }[]; markdown: string } {
+  const links: { title: string; url: string }[] = [];
+  let markdown = "";
+
+  // Extract Links: [{...}] JSON
+  const linksMatch = text.match(/Links:\s*(\[[\s\S]*?\])\s*\n/);
+  if (linksMatch) {
+    try {
+      const parsed = JSON.parse(linksMatch[1]);
+      if (Array.isArray(parsed)) {
+        for (const l of parsed) {
+          if (l.title && l.url) links.push({ title: l.title, url: l.url });
+        }
+      }
+    } catch {
+      // ignore
+    }
+    // Everything after the links JSON block is markdown content
+    const afterLinks = text.slice(linksMatch.index! + linksMatch[0].length).trim();
+    // Strip trailing REMINDER lines
+    markdown = afterLinks.replace(/\n*REMINDER:.*$/s, "").trim();
+  }
+
+  return { links, markdown };
+}
+
+function WebSearchToolCall({
+  input,
+  resultContent,
+}: {
+  input: Record<string, unknown>;
+  resultContent?: string;
+}) {
   const query = (input.query as string) ?? "";
+  const [showContent, setShowContent] = useState(false);
+
+  const { links, markdown } = useMemo(
+    () => (resultContent ? parseSearchContent(resultContent) : { links: [], markdown: "" }),
+    [resultContent]
+  );
+
+  const hasContent = links.length > 0 || markdown;
+
   return (
-    <div className="flex items-center gap-2">
-      <ToolBadge label="Search" icon={Search} />
-      <span className="text-xs text-foreground">{query}</span>
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label="Search" icon={Search} />
+        <span className="text-xs text-foreground">{query}</span>
+      </div>
+      {hasContent && (
+        <div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowContent(!showContent)}
+          >
+            {showContent ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            <span>{links.length} results</span>
+          </button>
+          {showContent && (
+            <div className="mt-1 space-y-2">
+              {links.length > 0 && (
+                <ul className="space-y-0.5 text-xs">
+                  {links.map((link, i) => (
+                    <li key={i}>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline hover:text-blue-800"
+                      >
+                        {link.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {markdown && (
+                <CollapsibleMarkdown text={markdown} maxLines={15} defaultOpen={true} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function WebFetchToolCall({ input }: { input: Record<string, unknown> }) {
+function WebFetchToolCall({
+  input,
+  resultContent,
+}: {
+  input: Record<string, unknown>;
+  resultContent?: string;
+}) {
   const url = (input.url as string) ?? "";
+  const [showContent, setShowContent] = useState(false);
+  const lineCount = resultContent ? resultContent.split("\n").length : 0;
+
   return (
-    <div className="flex items-center gap-2">
-      <ToolBadge label="Fetch" icon={Globe} />
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs text-blue-600 underline hover:text-blue-800 font-mono truncate max-w-md"
-      >
-        {url}
-      </a>
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label="Fetch" icon={Globe} />
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-600 underline hover:text-blue-800 font-mono truncate max-w-md"
+        >
+          {url}
+        </a>
+      </div>
+      {resultContent && (
+        <div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowContent(!showContent)}
+          >
+            {showContent ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            <span>{lineCount} lines</span>
+          </button>
+          {showContent && (
+            <CollapsibleMarkdown text={resultContent} maxLines={30} defaultOpen={true} />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1056,9 +1198,9 @@ function renderToolCallContent(
     case "Task":
       return <TaskToolCall input={input} />;
     case "WebSearch":
-      return <WebSearchToolCall input={input} />;
+      return <WebSearchToolCall input={input} resultContent={resultContent} />;
     case "WebFetch":
-      return <WebFetchToolCall input={input} />;
+      return <WebFetchToolCall input={input} resultContent={resultContent} />;
     case "TodoWrite":
       return <TodoWriteToolCall input={input} />;
     default:
@@ -1109,7 +1251,7 @@ const TOOL_COLORS: Record<string, { border: string; bg: string }> = {
 const DEFAULT_TOOL_COLOR = { border: "border-gray-400", bg: "bg-gray-50 dark:bg-gray-950/20" };
 
 // Tools that render their own result content (skip generic result toggle)
-const SELF_RENDERING_TOOLS = new Set(["Read", "Grep"]);
+const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch"]);
 
 function ToolUseBlock({
   block,
