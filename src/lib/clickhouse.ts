@@ -1,10 +1,16 @@
 import { createClient } from "@clickhouse/client";
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
+}
+
 const clickhouse = createClient({
   url: process.env.CLICKHOUSE_URL ?? "http://localhost:8123",
-  username: process.env.CLICKHOUSE_USER ?? "claude",
-  password: process.env.CLICKHOUSE_PASSWORD ?? "claude",
-  database: "claude_logs",
+  username: requireEnv("CLICKHOUSE_USER"),
+  password: requireEnv("CLICKHOUSE_PASSWORD"),
+  database: process.env.CLICKHOUSE_DB ?? "claude_logs",
 });
 
 export default clickhouse;

@@ -98,25 +98,15 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 | `CLICKHOUSE_DB` | `claude_logs` | ClickHouse database name |
 | `CLICKHOUSE_HOST` | `localhost` | ClickHouse host (used by the Next.js app) |
 
-### Custom Credentials
+### Credentials
 
-To change the default ClickHouse credentials, set environment variables before starting:
-
-```bash
-export CLICKHOUSE_USER=myuser
-export CLICKHOUSE_PASSWORD=mypassword
-
-docker compose up -d
-./scripts/run-otelcol.sh
-```
-
-The Next.js app reads the same variables from `.env.local`:
+All components read credentials from a single `.env` file in the project root. Copy the example and edit as needed:
 
 ```bash
-# .env.local
-CLICKHOUSE_USER=myuser
-CLICKHOUSE_PASSWORD=mypassword
+cp .env.example .env
 ```
+
+Docker Compose, the OTel Collector script, and the Next.js app all read from this file. No hardcoded defaults — if `.env` is missing, services will fail with a clear error.
 
 ## Data Pipeline
 

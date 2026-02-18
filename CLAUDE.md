@@ -23,7 +23,7 @@ Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickH
 - **ClickHouse** (Docker) — canonical OTel schema: `otel_logs` (both OTel events and JSONL), `otel_metrics_*`, `otel_traces`
 - **Next.js 16 App** (Docker) — App Router, API routes query ClickHouse via `@clickhouse/client`, frontend uses Tailwind + shadcn/ui
 
-No PostgreSQL, no custom backend. ClickHouse auth via env vars (`CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD`, default: `claude`/`claude`).
+No PostgreSQL, no custom backend. ClickHouse auth via env vars (`CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD`) in `.env` — no hardcoded defaults, see `.env.example`.
 
 ## Commands
 
@@ -41,7 +41,7 @@ npm run dev
 npm run build
 
 # Verify pipeline is receiving data (curl is ~200x faster than docker exec)
-curl 'http://localhost:8123/?user=claude&password=claude&database=claude_logs' \
+curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
   --data-binary 'SELECT count() FROM otel_logs'
 ```
 

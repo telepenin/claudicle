@@ -63,8 +63,8 @@ processors:
 exporters:
   clickhouse:
     endpoint: tcp://127.0.0.1:9000?dial_timeout=10s
-    username: ${env:CLICKHOUSE_USER:-claude}
-    password: ${env:CLICKHOUSE_PASSWORD:-claude}
+    username: ${env:CLICKHOUSE_USER}
+    password: ${env:CLICKHOUSE_PASSWORD}
     database: claude_logs
     create_schema: true
     async_insert: true

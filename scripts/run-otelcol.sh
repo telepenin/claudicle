@@ -4,6 +4,16 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="${REPO_DIR}/otelcol-config.yaml"
 
+# Load credentials from .env if present and vars not already set
+if [[ -f "${REPO_DIR}/.env" ]]; then
+  set -a
+  source "${REPO_DIR}/.env"
+  set +a
+fi
+
+: "${CLICKHOUSE_USER:?Missing CLICKHOUSE_USER — set it in .env or export it}"
+: "${CLICKHOUSE_PASSWORD:?Missing CLICKHOUSE_PASSWORD — set it in .env or export it}"
+
 if ! command -v otelcol-contrib &>/dev/null; then
   echo "Error: otelcol-contrib not found on PATH."
   echo "Install the OpenTelemetry Collector Contrib distribution:"
