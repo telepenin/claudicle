@@ -15,17 +15,20 @@ import { ContentBlocks, UsageInfo } from "./content-blocks";
 import {
   groupIntoTurns,
   shortenModel,
+  extractCwd,
   type Turn,
+  type TaskTimelineItem,
 } from "@/lib/turn-grouping";
 import { formatDuration } from "@/lib/format";
 import type { LogMessage } from "@/lib/types";
 
 // ─── SubagentConversation ────────────────────────────────────────────────
 
-export function SubagentConversation({ messages }: { messages: LogMessage[] }) {
+export function SubagentConversation({ messages, cwd: parentCwd }: { messages: LogMessage[]; cwd?: string }) {
   const [expanded, setExpanded] = useState(false);
 
   const turns = useMemo(() => groupIntoTurns(messages), [messages]);
+  const cwd = useMemo(() => extractCwd(messages) || parentCwd || "", [messages, parentCwd]);
 
   const stats = useMemo(() => {
     let turnCount = 0;
@@ -65,7 +68,7 @@ export function SubagentConversation({ messages }: { messages: LogMessage[] }) {
               case "user_prompt":
                 return <UserPromptCard key={i} turn={turn} />;
               case "assistant_turn":
-                return <AssistantTurnCard key={i} turn={turn} />;
+                return <AssistantTurnCard key={i} turn={turn} cwd={cwd} />;
               case "compact_summary":
                 return <CompactSummaryBanner key={i} turn={turn} />;
               case "skill_loaded":
@@ -141,10 +144,14 @@ export function AssistantTurnCard({
   turn,
   taskToSubagent,
   subagentMap,
+  taskTimeline,
+  cwd,
 }: {
   turn: Extract<Turn, { kind: "assistant_turn" }>;
   taskToSubagent?: Map<string, string>;
   subagentMap?: Map<string, LogMessage[]>;
+  taskTimeline?: Map<string, TaskTimelineItem[]>;
+  cwd?: string;
 }) {
   const durationMs = useMemo(() => computeTurnDuration(turn), [turn]);
 
@@ -177,6 +184,8 @@ export function AssistantTurnCard({
               taskToSubagent={taskToSubagent}
               subagentMap={subagentMap}
               SubagentConversation={SubagentConversation}
+              taskTimeline={taskTimeline}
+              cwd={cwd}
             />
           ) : (
             <p className="text-sm text-muted-foreground italic">
@@ -264,11 +273,10 @@ export function TurnSeparator({
 }: {
   turn: Extract<Turn, { kind: "turn_separator" }>;
 }) {
-  const seconds = Math.round(turn.durationMs / 1000);
   return (
     <div className="flex items-center gap-3 py-1">
       <div className="h-px flex-1 bg-border" />
-      <span className="text-xs text-muted-foreground">{seconds}s</span>
+      <span className="text-xs text-muted-foreground">{formatDuration(turn.durationMs)}</span>
       <div className="h-px flex-1 bg-border" />
     </div>
   );

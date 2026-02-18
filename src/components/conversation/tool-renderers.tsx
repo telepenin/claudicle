@@ -15,9 +15,17 @@ import {
   BookOpen,
   Code,
   Wrench,
+  CirclePlus,
+  RefreshCw,
+  ArrowRight,
+  MessageCircleQuestion,
+  Check,
+  Circle,
+  Map as MapIcon,
+  LogOut,
 } from "lucide-react";
 import { CollapsibleContent, CollapsibleMarkdown } from "./markdown";
-import { countLines } from "@/lib/turn-grouping";
+import { countLines, toRelativePath } from "@/lib/turn-grouping";
 import type { LogMessage } from "@/lib/types";
 
 // ─── ToolBadge ───────────────────────────────────────────────────────────
@@ -49,16 +57,23 @@ export const TOOL_COLORS: Record<string, { border: string; bg: string }> = {
   Task: { border: "border-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/20" },
   WebSearch: { border: "border-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
   WebFetch: { border: "border-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
-  TodoWrite: { border: "border-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-950/20" },
+  TodoWrite: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
+  TaskCreate: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
+  TaskUpdate: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
+  TaskList: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
+  TaskGet: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
+  AskUserQuestion: { border: "border-blue-400", bg: "bg-blue-50 dark:bg-blue-950/20" },
+  EnterPlanMode: { border: "border-purple-400", bg: "bg-purple-50 dark:bg-purple-950/20" },
+  ExitPlanMode: { border: "border-purple-400", bg: "bg-purple-50 dark:bg-purple-950/20" },
 };
 export const DEFAULT_TOOL_COLOR = { border: "border-gray-400", bg: "bg-gray-50 dark:bg-gray-950/20" };
 
 // Tools that render their own result content (skip generic result toggle)
-export const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch", "Task"]);
+export const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch", "Task", "AskUserQuestion", "ExitPlanMode"]);
 
 // ─── Write ───────────────────────────────────────────────────────────────
 
-function WriteToolCall({ input }: { input: Record<string, unknown> }) {
+function WriteToolCall({ input, cwd }: { input: Record<string, unknown>; cwd?: string }) {
   const filePath = (input.file_path as string) ?? "";
   const content = (input.content as string) ?? "";
   const lines = countLines(content);
@@ -66,7 +81,7 @@ function WriteToolCall({ input }: { input: Record<string, unknown> }) {
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         <ToolBadge label="Write" icon={FileText} />
-        <span className="font-mono text-xs text-muted-foreground">{filePath}</span>
+        <span className="font-mono text-xs text-muted-foreground">{toRelativePath(filePath, cwd ?? "")}</span>
         <span className="text-xs text-muted-foreground">{lines} lines</span>
       </div>
       {content && (
@@ -119,7 +134,7 @@ function diffLines(oldStr: string, newStr: string): DiffLine[] {
   return result.reverse();
 }
 
-function EditToolCall({ input }: { input: Record<string, unknown> }) {
+function EditToolCall({ input, cwd }: { input: Record<string, unknown>; cwd?: string }) {
   const filePath = (input.file_path as string) ?? "";
   const oldStr = (input.old_string as string) ?? "";
   const newStr = (input.new_string as string) ?? "";
@@ -136,7 +151,7 @@ function EditToolCall({ input }: { input: Record<string, unknown> }) {
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         <ToolBadge label="Edit" icon={Pencil} />
-        <span className="font-mono text-xs text-muted-foreground">{filePath}</span>
+        <span className="font-mono text-xs text-muted-foreground">{toRelativePath(filePath, cwd ?? "")}</span>
         {replaceAll && (
           <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
             replace all
@@ -199,7 +214,7 @@ function CodeViewer({
 
   return (
     <div>
-      <div className="overflow-auto bg-background text-xs font-mono">
+      <div className="overflow-auto rounded-md bg-background text-xs font-mono">
         <table className="w-full border-collapse">
           <tbody>
             {visible.map((line, i) => (
@@ -230,9 +245,11 @@ function CodeViewer({
 function ReadToolCall({
   input,
   resultContent,
+  cwd,
 }: {
   input: Record<string, unknown>;
   resultContent?: string;
+  cwd?: string;
 }) {
   const filePath = (input.file_path as string) ?? "";
   const offset = input.offset as number | undefined;
@@ -248,7 +265,7 @@ function ReadToolCall({
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         <ToolBadge label="Read" icon={BookOpen} />
-        <span className="font-mono text-xs text-muted-foreground">{filePath}</span>
+        <span className="font-mono text-xs text-muted-foreground">{toRelativePath(filePath, cwd ?? "")}</span>
         {(offset || limit) && (
           <span className="text-xs text-muted-foreground">
             {offset ? `from line ${offset}` : ""}
@@ -301,7 +318,7 @@ function BashToolCall({ input }: { input: Record<string, unknown> }) {
 
 // ─── Glob ────────────────────────────────────────────────────────────────
 
-function GlobToolCall({ input }: { input: Record<string, unknown> }) {
+function GlobToolCall({ input, cwd }: { input: Record<string, unknown>; cwd?: string }) {
   const pattern = (input.pattern as string) ?? "";
   const path = (input.path as string) ?? "";
   return (
@@ -309,7 +326,7 @@ function GlobToolCall({ input }: { input: Record<string, unknown> }) {
       <ToolBadge label="Glob" icon={FolderSearch} />
       <span className="font-mono text-xs text-muted-foreground">{pattern}</span>
       {path && (
-        <span className="text-xs text-muted-foreground">in {path}</span>
+        <span className="text-xs text-muted-foreground">in {toRelativePath(path, cwd ?? "")}</span>
       )}
     </div>
   );
@@ -343,7 +360,7 @@ function parseGrepResult(text: string): GrepResultLine[] {
   });
 }
 
-function GrepContentView({ lines }: { lines: Extract<GrepResultLine, { kind: "match" }>[] }) {
+function GrepContentView({ lines, cwd }: { lines: Extract<GrepResultLine, { kind: "match" }>[]; cwd?: string }) {
   // Group by file
   const groups: { file: string; matches: { lineNo: number; code: string; isMatch: boolean }[] }[] = [];
   for (const line of lines) {
@@ -356,12 +373,12 @@ function GrepContentView({ lines }: { lines: Extract<GrepResultLine, { kind: "ma
   }
 
   return (
-    <div className="overflow-auto bg-background text-xs font-mono">
+    <div className="overflow-auto rounded-md bg-background text-xs font-mono">
       {groups.map((group, gi) => (
         <div key={gi}>
           {group.file && (
             <div className={`px-3 py-1 text-muted-foreground truncate ${gi > 0 ? "border-t border-border/50" : ""}`}>
-              {group.file}
+              {toRelativePath(group.file, cwd ?? "")}
             </div>
           )}
           <table className="w-full border-collapse">
@@ -387,9 +404,11 @@ function GrepContentView({ lines }: { lines: Extract<GrepResultLine, { kind: "ma
 function GrepToolCall({
   input,
   resultContent,
+  cwd,
 }: {
   input: Record<string, unknown>;
   resultContent?: string;
+  cwd?: string;
 }) {
   const pattern = (input.pattern as string) ?? "";
   const path = (input.path as string) ?? "";
@@ -424,7 +443,7 @@ function GrepToolCall({
         <ToolBadge label="Grep" icon={Search} />
         <span className="font-mono text-xs text-muted-foreground">{pattern}</span>
         {path && (
-          <span className="text-xs text-muted-foreground">in {path}</span>
+          <span className="text-xs text-muted-foreground">in {toRelativePath(path, cwd ?? "")}</span>
         )}
       </div>
       {resultLines > 0 && (
@@ -441,17 +460,17 @@ function GrepToolCall({
             <span>{toggleLabel}</span>
           </button>
           {showContent && hasMatches && (
-            <GrepContentView lines={matches} />
+            <GrepContentView lines={matches} cwd={cwd} />
           )}
           {showContent && hasFiles && !hasMatches && (
-            <div className="overflow-auto bg-background text-xs font-mono p-3 space-y-0.5">
+            <div className="overflow-auto rounded-md bg-background text-xs font-mono p-3 space-y-0.5">
               {files.map((p, i) => (
-                <div key={i} className="text-muted-foreground">{p.path}</div>
+                <div key={i} className="text-muted-foreground">{toRelativePath(p.path, cwd ?? "")}</div>
               ))}
             </div>
           )}
           {showContent && !hasMatches && !hasFiles && hasText && (
-            <div className="overflow-auto bg-background text-xs font-mono p-3 space-y-0.5">
+            <div className="overflow-auto rounded-md bg-background text-xs font-mono p-3 space-y-0.5">
               {texts.map((p, i) => (
                 <div key={i} className="text-muted-foreground">{p.text}</div>
               ))}
@@ -604,7 +623,70 @@ function WebFetchToolCall({
   );
 }
 
-// ─── TodoWrite ───────────────────────────────────────────────────────────
+// ─── TaskCreate ───────────────────────────────────────────────────────
+
+function TaskCreateToolCall({ input }: { input: Record<string, unknown> }) {
+  const subject = (input.subject as string) ?? "";
+  const description = (input.description as string) ?? "";
+  const activeForm = (input.activeForm as string) ?? "";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label="TaskCreate" icon={CirclePlus} />
+      </div>
+      <div className="text-sm font-medium">{subject}</div>
+      {description && (
+        <div className="text-xs text-muted-foreground line-clamp-2">{description}</div>
+      )}
+      {activeForm && (
+        <div className="text-xs text-muted-foreground italic">{activeForm}</div>
+      )}
+    </div>
+  );
+}
+
+// ─── TaskUpdate ───────────────────────────────────────────────────────
+
+function TaskUpdateToolCall({ input }: { input: Record<string, unknown> }) {
+  const taskId = (input.taskId as string) ?? "";
+  const status = (input.status as string) ?? "";
+  const subject = (input.subject as string) ?? "";
+  const icon =
+    status === "completed"
+      ? "✓"
+      : status === "in_progress"
+        ? "▶"
+        : status === "deleted"
+          ? "✕"
+          : "○";
+  const cls =
+    status === "completed"
+      ? "text-green-600"
+      : status === "in_progress"
+        ? "text-blue-600"
+        : status === "deleted"
+          ? "text-red-600"
+          : "text-muted-foreground";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label="TaskUpdate" icon={RefreshCw} />
+        <span className="text-xs text-muted-foreground">#{taskId}</span>
+        {status && (
+          <span className={`inline-flex items-center gap-1 text-xs font-medium ${cls}`}>
+            <ArrowRight className="h-3 w-3" />
+            <span>{icon} {status}</span>
+          </span>
+        )}
+      </div>
+      {subject && (
+        <div className="text-xs text-muted-foreground">{subject}</div>
+      )}
+    </div>
+  );
+}
+
+// ─── TodoWrite ────────────────────────────────────────────────────────
 
 function TodoWriteToolCall({ input }: { input: Record<string, unknown> }) {
   const todos = input.todos as Array<{
@@ -644,6 +726,150 @@ function TodoWriteToolCall({ input }: { input: Record<string, unknown> }) {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+// ─── AskUserQuestion ──────────────────────────────────────────────────
+
+interface AskQuestion {
+  question?: string;
+  header?: string;
+  options?: Array<{ label?: string; description?: string }>;
+  multiSelect?: boolean;
+}
+
+/**
+ * Parse the "answered your questions" result text into a map of question → answer.
+ * Format: `"question"="answer" user notes: ..., "question2"="answer2"`
+ */
+function parseAnswers(text: string): Map<string, { answer: string; notes?: string }> {
+  const result = new Map<string, { answer: string; notes?: string }>();
+  // Match pairs: "question"="answer" optionally followed by user notes: ...
+  const re = /"([^"]+)"="([^"]+)"(?:\s+user notes:\s*([^,"]*))?/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    result.set(m[1], { answer: m[2], notes: m[3]?.trim() || undefined });
+  }
+  return result;
+}
+
+function AskUserQuestionToolCall({
+  input,
+  resultContent,
+}: {
+  input: Record<string, unknown>;
+  resultContent?: string;
+}) {
+  const questions = (input.questions as AskQuestion[]) ?? [];
+  const answers = useMemo(
+    () => (resultContent ? parseAnswers(resultContent) : new Map<string, { answer: string; notes?: string }>()),
+    [resultContent],
+  );
+
+  return (
+    <div className="space-y-2">
+      <ToolBadge label="Question" icon={MessageCircleQuestion} />
+      {questions.map((q, qi) => {
+        const answerInfo = q.question ? answers.get(q.question) : undefined;
+        return (
+          <div key={qi} className="space-y-1">
+            <div className="flex items-center gap-2">
+              {q.header && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                  {q.header}
+                </Badge>
+              )}
+              <span className="text-sm">{q.question}</span>
+            </div>
+            {q.options && q.options.length > 0 && (
+              <div className="space-y-0.5 ml-1">
+                {q.options.map((opt, oi) => {
+                  const selected = answerInfo?.answer === opt.label;
+                  return (
+                    <div
+                      key={oi}
+                      className={`flex items-start gap-2 text-xs rounded px-1.5 py-0.5 ${
+                        selected
+                          ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {selected ? (
+                        <Check className="h-3 w-3 mt-0.5 shrink-0" />
+                      ) : (
+                        <Circle className="h-3 w-3 mt-0.5 shrink-0" />
+                      )}
+                      <div>
+                        <span className={selected ? "font-medium" : ""}>{opt.label}</span>
+                        {opt.description && (
+                          <span className="ml-1 opacity-70">— {opt.description}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {answerInfo && !q.options?.some((o) => o.label === answerInfo.answer) && (
+              <div className="flex items-start gap-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded px-1.5 py-0.5 ml-1">
+                <Check className="h-3 w-3 mt-0.5 shrink-0" />
+                <span className="font-medium">{answerInfo.answer}</span>
+              </div>
+            )}
+            {answerInfo?.notes && (
+              <div className="text-xs text-muted-foreground ml-6 italic">
+                Note: {answerInfo.notes}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {!resultContent && (
+        <span className="text-xs text-muted-foreground italic">Waiting for answer…</span>
+      )}
+    </div>
+  );
+}
+
+// ─── EnterPlanMode / ExitPlanMode ─────────────────────────────────────
+
+function EnterPlanModeToolCall() {
+  return (
+    <div className="flex items-center gap-2">
+      <ToolBadge label="Plan" icon={MapIcon} />
+      <span className="text-xs text-muted-foreground">Entering plan mode…</span>
+    </div>
+  );
+}
+
+function ExitPlanModeToolCall({
+  input,
+  resultContent,
+}: {
+  input: Record<string, unknown>;
+  resultContent?: string;
+}) {
+  const plan = (input.plan as string) ?? "";
+  const rejected = resultContent?.includes("rejected") ?? false;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label="Plan" icon={LogOut} />
+        <span className="text-xs text-muted-foreground">Exiting plan mode</span>
+        {resultContent && (
+          <Badge
+            variant={rejected ? "destructive" : "outline"}
+            className="text-[10px] px-1.5 py-0 h-4"
+          >
+            {rejected ? "rejected" : "approved"}
+          </Badge>
+        )}
+      </div>
+      {plan && (
+        <CollapsibleMarkdown text={plan} maxLines={15} />
+      )}
     </div>
   );
 }
@@ -696,11 +922,13 @@ export function TaskToolCall({
   resultContent,
   subagentMessages,
   SubagentConversation,
+  cwd,
 }: {
   input: Record<string, unknown>;
   resultContent?: string;
   subagentMessages?: LogMessage[];
-  SubagentConversation?: React.ComponentType<{ messages: LogMessage[] }>;
+  SubagentConversation?: React.ComponentType<{ messages: LogMessage[]; cwd?: string }>;
+  cwd?: string;
 }) {
   const subagentType = (input.subagent_type as string) ?? "";
   const description = (input.description as string) ?? "";
@@ -723,7 +951,7 @@ export function TaskToolCall({
         <CollapsibleMarkdown text={prompt} maxLines={8} />
       )}
       {subagentMessages && subagentMessages.length > 0 && SubagentConversation && (
-        <SubagentConversation messages={subagentMessages} />
+        <SubagentConversation messages={subagentMessages} cwd={cwd} />
       )}
       {resultContent && (
         <div>
@@ -757,28 +985,39 @@ export function renderToolCallContent(
   resultContent?: string,
   subagentMessages?: LogMessage[],
   SubagentConversation?: React.ComponentType<{ messages: LogMessage[] }>,
+  cwd?: string,
 ) {
   switch (name) {
     case "Write":
-      return <WriteToolCall input={input} />;
+      return <WriteToolCall input={input} cwd={cwd} />;
     case "Edit":
-      return <EditToolCall input={input} />;
+      return <EditToolCall input={input} cwd={cwd} />;
     case "Read":
-      return <ReadToolCall input={input} resultContent={resultContent} />;
+      return <ReadToolCall input={input} resultContent={resultContent} cwd={cwd} />;
     case "Bash":
       return <BashToolCall input={input} />;
     case "Glob":
-      return <GlobToolCall input={input} />;
+      return <GlobToolCall input={input} cwd={cwd} />;
     case "Grep":
-      return <GrepToolCall input={input} resultContent={resultContent} />;
+      return <GrepToolCall input={input} resultContent={resultContent} cwd={cwd} />;
     case "Task":
-      return <TaskToolCall input={input} resultContent={resultContent} subagentMessages={subagentMessages} SubagentConversation={SubagentConversation} />;
+      return <TaskToolCall input={input} resultContent={resultContent} subagentMessages={subagentMessages} SubagentConversation={SubagentConversation} cwd={cwd} />;
     case "WebSearch":
       return <WebSearchToolCall input={input} resultContent={resultContent} />;
     case "WebFetch":
       return <WebFetchToolCall input={input} resultContent={resultContent} />;
+    case "TaskCreate":
+      return <TaskCreateToolCall input={input} />;
+    case "TaskUpdate":
+      return <TaskUpdateToolCall input={input} />;
     case "TodoWrite":
       return <TodoWriteToolCall input={input} />;
+    case "AskUserQuestion":
+      return <AskUserQuestionToolCall input={input} resultContent={resultContent} />;
+    case "EnterPlanMode":
+      return <EnterPlanModeToolCall />;
+    case "ExitPlanMode":
+      return <ExitPlanModeToolCall input={input} resultContent={resultContent} />;
     default:
       return <GenericToolCall name={name} input={input} />;
   }

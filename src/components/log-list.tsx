@@ -24,21 +24,8 @@ import {
   GitBranch,
   AlertCircle,
 } from "lucide-react";
-import { formatRelativeTime } from "@/lib/format";
+import { formatRelativeTime, extractProject } from "@/lib/format";
 import type { LogListResponse } from "@/lib/types";
-
-function extractProject(filePath: string): string {
-  // Extract folder name from .claude/projects/<encoded-path>/<uuid>.jsonl
-  const match = filePath.match(/projects\/([^/]+)/);
-  if (!match) return filePath;
-  const slug = match[1];
-  // Strip home dir prefix (-Users-username or -home-username)
-  const cleaned = slug
-    .replace(/^-(?:Users|home)-[^-]+-?/, "")
-    .replace(/^-/, "");
-  if (!cleaned) return "~";
-  return cleaned;
-}
 
 export function LogList() {
   const [data, setData] = useState<LogListResponse | null>(null);

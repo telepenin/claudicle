@@ -5,15 +5,13 @@ Open-source tool to collect and visualize [Claude Code](https://claude.ai/code) 
 ## Architecture
 
 ```
-Claude Code  ──OTLP HTTP/JSON──▶  Vector (:4318)  ──▶  ClickHouse  ──▶  Next.js App (:3000)
-~/.claude/projects/*.jsonl  ──▶  Vector (file source)  ──▶  ClickHouse
+Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickHouse  ──▶  Next.js App (:3000)
+~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog)  ──▶  ClickHouse
 ```
 
-Three services via Docker Compose:
-
-- **Vector** — receives OTLP on port 4318 + tails JSONL session logs, sinks both to ClickHouse
-- **ClickHouse** — stores OTel events, metrics, and full session logs
-- **Next.js App** — web UI and API routes that query ClickHouse
+- **OTel Collector** (local install, otelcol-contrib) — receives OTLP on port 4318 + tails JSONL files, exports both to ClickHouse
+- **ClickHouse** (Docker) — stores OTel events and full session logs
+- **Next.js App** (Docker) — web UI and API routes that query ClickHouse
 
 ## Quick Start
 
@@ -41,12 +39,10 @@ export OTEL_LOG_TOOL_DETAILS=1
 
 ### 3. (Optional) Enable full session logs
 
-Mount your Claude Code session logs into the Vector container to get full conversation transcripts including Claude's responses:
+Run the OTel Collector locally to get full conversation transcripts including Claude's responses:
 
-```yaml
-# In docker-compose.yml, uncomment:
-volumes:
-  - ~/.claude/projects:/data/claude-projects:ro
+```bash
+./scripts/run-otelcol.sh
 ```
 
 ### 4. Browse sessions
@@ -81,7 +77,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 - **Next.js 16** (App Router) — frontend and API routes
 - **ClickHouse** — event, metric, and session storage
-- **Vector** — data pipeline (OTLP + file sources → ClickHouse)
+- **OTel Collector** (otelcol-contrib) — OTLP receiver + filelog receiver → ClickHouse exporter
 - **Tailwind CSS** + **shadcn/ui** — UI components
 - **recharts** — dashboard charts
 - **@clickhouse/client** — ClickHouse queries from Node.js

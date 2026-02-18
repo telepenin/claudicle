@@ -12,11 +12,14 @@ export function formatTokens(n: number): string {
 
 export function formatDuration(ms: number): string {
   if (ms < 1_000) return `${Math.round(ms)}ms`;
-  if (ms < 60_000) return `${(ms / 1_000).toFixed(1)}s`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
-  const h = Math.floor(ms / 3_600_000);
-  const m = Math.round((ms % 3_600_000) / 60_000);
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  const totalSec = Math.round(ms / 1_000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
 }
 
 export function formatDurationMinutes(min: number): string {
@@ -46,4 +49,17 @@ export function formatRelativeTime(ts: string): string {
   if (days < 30) return `${days}d ago`;
 
   return new Date(ts).toLocaleDateString();
+}
+
+export function extractProject(filePath: string): string {
+  // Extract folder name from .claude/projects/<encoded-path>/<uuid>.jsonl
+  const match = filePath.match(/projects\/([^/]+)/);
+  if (!match) return filePath;
+  const slug = match[1];
+  // Strip home dir prefix (-Users-username or -home-username)
+  const cleaned = slug
+    .replace(/^-(?:Users|home)-[^-]+-?/, "")
+    .replace(/^-/, "");
+  if (!cleaned) return "~";
+  return cleaned;
 }

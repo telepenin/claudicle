@@ -11,7 +11,6 @@ export function Header() {
         </div>
         <nav className="flex items-center gap-4">
           <NavLink href="/">Dashboard</NavLink>
-          <NavLink href="/sessions">Sessions</NavLink>
           <NavLink href="/logs">Logs</NavLink>
         </nav>
       </div>

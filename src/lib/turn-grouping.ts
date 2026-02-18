@@ -81,6 +81,24 @@ export function countLines(text: string): number {
   return text.split("\n").length;
 }
 
+export function toRelativePath(fullPath: string, cwd: string): string {
+  if (!cwd || !fullPath.startsWith(cwd)) return fullPath;
+  const rel = fullPath.slice(cwd.length);
+  return rel.startsWith("/") ? rel.slice(1) : rel;
+}
+
+export function extractCwd(messages: LogMessage[]): string {
+  for (const msg of messages) {
+    try {
+      const parsed = JSON.parse(msg.raw);
+      if (parsed.cwd) return parsed.cwd;
+    } catch {
+      // skip
+    }
+  }
+  return "";
+}
+
 // ─── Parsing ──────────────────────────────────────────────────────────────
 
 export function parseMessage(raw: string): {
@@ -413,6 +431,72 @@ export function groupIntoTurns(
 
   flushAssistant();
   return turns;
+}
+
+// ─── Task timeline ────────────────────────────────────────────────────────
+
+export interface TaskTimelineItem {
+  taskId: string;
+  content: string;
+  status: string;
+}
+
+const TASK_MGMT_TOOLS = new Set([
+  "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop", "TodoWrite",
+]);
+
+/**
+ * Build a timeline of task board snapshots across turns.
+ * For each task-management tool_use block, saves the cumulative board state
+ * (Map keyed by tool_use_id → full TaskTimelineItem[] at that point).
+ *
+ * This lets TaskUpdate groups show the FULL board — not just the changed items.
+ */
+export function buildTaskTimeline(turns: Turn[]): Map<string, TaskTimelineItem[]> {
+  const state = new Map<string, TaskTimelineItem>();
+  const snapshots = new Map<string, TaskTimelineItem[]>();
+
+  for (const turn of turns) {
+    if (turn.kind !== "assistant_turn") continue;
+
+    for (const block of turn.contentBlocks) {
+      if (block.type !== "tool_use" || !block.id) continue;
+      if (!TASK_MGMT_TOOLS.has(block.name ?? "")) continue;
+
+      const input = (block.input as Record<string, unknown>) ?? {};
+
+      if (block.name === "TaskCreate") {
+        const subject = (input.subject as string) ?? "";
+        // Extract task ID from tool result text: "Task #N created successfully: ..."
+        const result = turn.toolResults.get(block.id);
+        const idMatch = result?.content?.match(/Task #(\d+)/);
+        const taskId = idMatch?.[1] ?? `t${state.size + 1}`;
+        state.set(taskId, { taskId, content: subject, status: "pending" });
+      } else if (block.name === "TaskUpdate") {
+        const taskId = (input.taskId as string) ?? "";
+        const status = (input.status as string) ?? "";
+        if (taskId && state.has(taskId)) {
+          state.get(taskId)!.status = status;
+          const newSubject = (input.subject as string);
+          if (newSubject) state.get(taskId)!.content = newSubject;
+        }
+      } else if (block.name === "TodoWrite") {
+        const todos = input.todos as Array<{ content?: string; status?: string }> | undefined;
+        if (Array.isArray(todos)) {
+          state.clear();
+          todos.forEach((t, i) => {
+            const taskId = String(i + 1);
+            state.set(taskId, { taskId, content: t.content ?? "", status: t.status ?? "pending" });
+          });
+        }
+      }
+      // For all task tools (including TaskList/TaskGet/TaskStop), save snapshot
+      // Deep copy items so later mutations don't affect previous snapshots
+      snapshots.set(block.id, Array.from(state.values()).map(item => ({ ...item })));
+    }
+  }
+
+  return snapshots;
 }
 
 // ─── Subagent helpers ─────────────────────────────────────────────────────

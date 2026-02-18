@@ -8,6 +8,8 @@ import {
   groupIntoTurns,
   splitMainAndSubagent,
   buildTaskToSubagentMap,
+  buildTaskTimeline,
+  extractCwd,
 } from "@/lib/turn-grouping";
 import {
   UserPromptCard,
@@ -73,6 +75,12 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
     if (subagentMap.size === 0) return new Map<string, string>();
     return buildTaskToSubagentMap(mainMessages, subagentMap);
   }, [mainMessages, subagentMap]);
+
+  const taskTimeline = useMemo(() => {
+    return buildTaskTimeline(turns);
+  }, [turns]);
+
+  const cwd = useMemo(() => extractCwd(mainMessages), [mainMessages]);
 
   if (loading) {
     return (
@@ -147,6 +155,8 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
                     turn={turn}
                     taskToSubagent={taskToSubagent}
                     subagentMap={subagentMap}
+                    taskTimeline={taskTimeline}
+                    cwd={cwd}
                   />
                 );
               case "compact_summary":

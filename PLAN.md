@@ -2,7 +2,7 @@
 
 ## Context
 
-Open-source tool to collect and view Claude Code session telemetry. Users run a Docker Compose stack (3 services), configure Claude Code's built-in OTel export, and get a web UI to browse sessions. No auth, no custom backend — just Vector + ClickHouse + Next.js frontend.
+Open-source tool to collect and view Claude Code session telemetry. OTel Collector runs locally (receives OTLP + tails JSONL files), exports to ClickHouse (Docker), and a Next.js app provides the web UI. No auth, no custom backend.
 
 ### Two data sources
 
@@ -26,7 +26,7 @@ Full conversation transcripts including Claude's text responses, thinking blocks
 
 ### Why both?
 
-OTel provides structured operational data (costs, tokens, tool stats) suitable for analytics and monitoring. JSONL provides the full conversation content for session replay. Vector ingests both into ClickHouse through a single pipeline.
+OTel provides structured operational data (costs, tokens, tool stats) suitable for analytics and monitoring. JSONL provides the full conversation content for session replay. The OTel Collector ingests both into ClickHouse through a single pipeline.
 
 ---
 
@@ -44,31 +44,25 @@ OTel provides structured operational data (costs, tokens, tool stats) suitable f
          │  POST /v1/metrics
          ▼                          │
 ┌──────────────────────────────────────────────────┐
-│  Docker Compose (3 services)                      │
+│  OTel Collector (local, otelcol-contrib)          │
+│  port 4318 (receives OTLP + tails JSONL files)    │
+└────────────────────┬─────────────────────────────┘
+                     │
+                     ▼
+┌──────────────────────────────────────────────────┐
+│  Docker Compose                                    │
 │                                                    │
-│  ┌───────────────┐    ┌──────────────┐            │
-│  │    Vector      │───→│  ClickHouse  │            │
-│  │  port 4318     │    │  port 9000   │            │
-│  │  (OTLP source  │    │  (stores     │            │
-│  │   + file source │    │   events,   │            │
-│  │   for JSONL)   │    │   metrics,  │            │
-│  └───────────────┘    │   sessions)  │            │
-│                        └──────┬───────┘            │
-│                               │                     │
-│                               │ HTTP queries        │
-│                               ▼                     │
-│                        ┌──────────────┐            │
-│                        │  Next.js App │            │
-│                        │  port 3000   │            │
-│                        │  (frontend + │            │
-│                        │   API routes │            │
-│                        │   that query │            │
-│                        │   ClickHouse)│            │
-│                        └──────────────┘            │
+│  ┌──────────────┐    ┌──────────────┐            │
+│  │  ClickHouse  │    │  Next.js App │            │
+│  │  port 8123   │◀───│  port 3000   │            │
+│  │  (stores     │    │  (frontend + │            │
+│  │   events,    │    │   API routes)│            │
+│  │   sessions)  │    └──────────────┘            │
+│  └──────────────┘                                 │
 └──────────────────────────────────────────────────┘
 
 Exposed ports:
-  4318 — Vector (receives OTLP from Claude Code)
+  4318 — OTel Collector (receives OTLP from Claude Code)
   3000 — Web UI (browse sessions)
 ```
 
@@ -94,7 +88,7 @@ export OTEL_LOG_TOOL_DETAILS=1
 
 Then open `http://localhost:3000` to view sessions.
 
-JSONL ingestion is optional — mount `~/.claude/projects/` into the Vector container to also get full conversation transcripts.
+JSONL ingestion is optional — the OTel Collector tails `~/.claude/projects/` for full conversation transcripts.
 
 ---
 
@@ -103,16 +97,15 @@ JSONL ingestion is optional — mount `~/.claude/projects/` into the Vector cont
 ### Pipeline 1: OTel events & metrics
 
 1. Claude Code's built-in OTel SDK sends OTLP HTTP/JSON to `http://localhost:4318/v1/logs` and `/v1/metrics`
-2. Vector receives it via its `opentelemetry` source
-3. Vector batches and sinks to ClickHouse via the `clickhouse` sink
-4. ClickHouse stores events in `otel_events` table and metrics in `otel_metrics` table
+2. OTel Collector receives it via its `otlp` receiver
+3. OTel Collector exports to ClickHouse via the `clickhouse` exporter
+4. ClickHouse stores everything in the canonical `otel_logs` table
 
 ### Pipeline 2: JSONL session logs
 
-1. User mounts `~/.claude/projects/` into the Vector container
-2. Vector tails `**/*.jsonl` files via its `file` source
-3. Each line is parsed as JSON and sunk to ClickHouse `session_logs` table
-4. Raw JSON stored as-is in a String column, queryable via ClickHouse JSON functions
+1. OTel Collector tails `~/.claude/projects/**/*.jsonl` via its `filelog` receiver
+2. Each line is parsed and exported to ClickHouse `otel_logs` table
+3. Raw JSON stored in the `Body` column, queryable via ClickHouse JSON functions
 
 ### What Claude Code sends (OTLP JSON example)
 
@@ -144,75 +137,17 @@ JSONL ingestion is optional — mount `~/.claude/projects/` into the Vector cont
 }
 ```
 
-### Vector config
+### OTel Collector config
 
-```toml
-# vector.toml
-
-# --- Sources ---
-
-[sources.otel]
-type = "opentelemetry"
-grpc.address = "0.0.0.0:4317"
-http.address = "0.0.0.0:4318"
-
-[sources.jsonl_logs]
-type = "file"
-include = ["/data/claude-projects/**/*.jsonl"]
-read_from = "beginning"
-
-# --- Sinks ---
-
-[sinks.clickhouse_otel]
-type = "clickhouse"
-inputs = ["otel"]
-endpoint = "http://clickhouse:8123"
-database = "claude_logs"
-table = "otel_events"
-
-[sinks.clickhouse_sessions]
-type = "clickhouse"
-inputs = ["jsonl_logs"]
-endpoint = "http://clickhouse:8123"
-database = "claude_logs"
-table = "session_logs"
-```
+See `otelcol-config.yaml` — OTLP receiver + filelog receiver → ClickHouse exporter.
 
 ### ClickHouse tables
 
-**`otel_events`** — OTel events (from OTLP):
-| Column | Type | Contents |
-|--------|------|----------|
-| timestamp | DateTime64(9) | Event time |
-| event_name | String | `claude_code.user_prompt`, `claude_code.tool_result`, etc. |
-| session_id | String | Session identifier |
-| attributes | Map(String, String) | All event attributes |
-| resource | Map(String, String) | `service.name`, `os.type`, etc. |
+All data lives in the canonical OTel schema table `otel_logs` (auto-created by the ClickHouse exporter).
 
-**`otel_metrics`** — OTel metrics (from OTLP):
-| Column | Type | Contents |
-|--------|------|----------|
-| timestamp | DateTime64(9) | Metric time |
-| metric_name | String | `claude_code.token.usage`, `claude_code.cost.usage`, etc. |
-| value | Float64 | Metric value |
-| attributes | Map(String, String) | `session.id`, `type`, `model` |
+**OTel events** (`ServiceName = 'claude-code'`): `Timestamp`, `Body`, `SeverityText`, `LogAttributes` (map), `ResourceAttributes` (map), `ServiceName`.
 
-**`session_logs`** — full conversation logs (from JSONL):
-| Column | Type | Contents |
-|--------|------|----------|
-| timestamp | DateTime64(3) | Insertion time |
-| raw | String | Raw JSON line from JSONL file |
-| file | String | Source file path |
-
-Query JSONL data with ClickHouse JSON functions:
-```sql
-SELECT
-  JSONExtractString(raw, 'type') AS msg_type,
-  JSONExtractString(raw, 'sessionId') AS session_id,
-  JSONExtractString(raw, 'timestamp') AS ts
-FROM claude_logs.session_logs
-WHERE JSONExtractString(raw, 'type') = 'assistant';
-```
+**JSONL session logs** (`ResourceAttributes['source'] = 'claude_jsonl'`): full conversation transcripts. Message type in `LogAttributes['type']`, session ID in `LogAttributes['sessionId']`, raw JSON in `Body`.
 
 ### How the frontend queries ClickHouse
 
@@ -250,10 +185,10 @@ ORDER BY timestamp ASC;
 | Layer | Technology |
 |-------|-----------|
 | Frontend + API | Next.js 16 (App Router), Tailwind CSS, shadcn/ui |
-| Data pipeline | Vector (OTLP source + file source → ClickHouse sink) |
+| Data pipeline | OTel Collector (otelcol-contrib: OTLP + filelog → ClickHouse) |
 | Storage | ClickHouse |
 | ClickHouse client | `@clickhouse/client` (Node.js) |
-| Deployment | Docker Compose (3 services) |
+| Deployment | Docker Compose (ClickHouse + Next.js) + local OTel Collector |
 
 No PostgreSQL, no auth, no custom backend.
 
@@ -295,7 +230,7 @@ Each card shows timestamp. Events ordered chronologically.
 ```
 claude-log-collection/
 ├── docker-compose.yml
-├── vector.toml
+├── otelcol-config.yaml
 ├── Dockerfile                            # Next.js app
 ├── src/
 │   ├── app/
@@ -335,8 +270,8 @@ claude-log-collection/
 
 ### Phase 1: Infrastructure + Pipeline
 1. Init Next.js project (TypeScript, Tailwind, App Router)
-2. Write `docker-compose.yml` (3 services: app, vector, clickhouse)
-3. Write `vector.toml` (opentelemetry source + file source → clickhouse sink)
+2. Write `docker-compose.yml` (ClickHouse + Next.js app)
+3. Write `otelcol-config.yaml` (OTLP receiver + filelog receiver → ClickHouse exporter)
 4. Write `Dockerfile` for Next.js app
 5. Create ClickHouse tables (`otel_events`, `otel_metrics`, `session_logs`)
 6. Implement `src/lib/clickhouse.ts` — ClickHouse client wrapper
@@ -365,22 +300,12 @@ claude-log-collection/
 
 ```yaml
 services:
-  vector:
-    image: timberio/vector:latest-alpine
-    ports:
-      - "4318:4318"     # OTLP HTTP — Claude Code sends data here
-    volumes:
-      - ./vector.toml:/etc/vector/vector.toml
-      # Optional: mount JSONL logs for full conversation ingestion
-      # - ~/.claude/projects:/data/claude-projects:ro
-    depends_on:
-      - clickhouse
-
   clickhouse:
     image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-    # Internal only — queried by the app
 
   app:
     build: .
@@ -394,6 +319,8 @@ services:
 volumes:
   clickhouse_data:
 ```
+
+OTel Collector runs locally (not in Docker) via `./scripts/run-otelcol.sh`.
 
 ---
 
@@ -411,4 +338,4 @@ volumes:
 - `@clickhouse/client` — ClickHouse Node.js client
 - `tailwindcss` + `shadcn/ui` — UI components
 - `recharts` — dashboard charts
-- `timberio/vector` — Docker image (data pipeline with OTLP + file sources)
+- `otelcol-contrib` — OTel Collector (data pipeline with OTLP + filelog receivers)

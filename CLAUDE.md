@@ -64,8 +64,9 @@ All data lives in the canonical OTel schema table `otel_logs` (auto-created by t
 
 ## API Routes
 
-- `GET /api/sessions` — session list grouped by `session.id` with aggregated stats (pagination: `page`, `limit`, `search`, `from`, `to`)
-- `GET /api/sessions/[id]` — all events for a session ordered by timestamp
+- `GET /api/logs` — JSONL session list with message counts (pagination: `page`, `limit`, `search`, `from`, `to`)
+- `GET /api/logs/[id]` — full conversation for a JSONL session ordered by timestamp
+- `GET /api/logs/[id]/text` — plain-text export of a conversation
 - `GET /api/stats` — aggregate stats for dashboard charts
 
 ## Key Source Locations
@@ -73,7 +74,6 @@ All data lives in the canonical OTel schema table `otel_logs` (auto-created by t
 - `src/lib/clickhouse.ts` — ClickHouse client singleton
 - `src/lib/queries.ts` — all ClickHouse queries (OTel events + JSONL sessions)
 - `src/lib/types.ts` — shared TypeScript types
-- `src/components/event-cards/` — typed event card components (one per event type)
 - `otelcol-config.yaml` — OTel Collector pipeline config (OTLP + filelog → ClickHouse)
 - `docker-compose.yml` — ClickHouse + Next.js app
 - `scripts/run-otelcol.sh` — start OTel Collector locally

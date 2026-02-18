@@ -1,5 +1,5 @@
 # OpenTelemetry Collector config: OTLP + JSONL session logs → ClickHouse
-# Replaces vector.toml — uses otelcol-contrib with the ClickHouse exporter.
+# Uses otelcol-contrib with the ClickHouse exporter.
 
 receivers:
   otlp:
