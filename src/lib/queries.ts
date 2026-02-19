@@ -16,6 +16,11 @@ import type {
 
 const DIMENSION_KEYS = ["project", "environment", "team", "developer"] as const;
 
+/** SQL expression that coalesces empty resource attribute to 'default'. */
+function dimExpr(key: string): string {
+  return `if(ResourceAttributes['${key}'] = '', 'default', ResourceAttributes['${key}'])`;
+}
+
 function buildFilterClause(filters?: DashboardFilters): {
   clause: string;
   params: Record<string, string>;
@@ -26,29 +31,44 @@ function buildFilterClause(filters?: DashboardFilters): {
   for (const key of DIMENSION_KEYS) {
     const value = filters[key];
     if (value) {
-      clause += ` AND ResourceAttributes['${key}'] = {filter_${key}:String}`;
+      clause += ` AND ${dimExpr(key)} = {filter_${key}:String}`;
       params[`filter_${key}`] = value;
     }
   }
   return { clause, params };
 }
 
-export async function getDimensions(): Promise<DimensionValues> {
+export async function getDimensions(
+  filters?: DashboardFilters
+): Promise<DimensionValues> {
+  // For each dimension, apply all OTHER filters so the dropdown still shows
+  // all values for itself but narrows based on sibling selections.
   const results = await Promise.all(
-    DIMENSION_KEYS.map((key) =>
-      clickhouse
+    DIMENSION_KEYS.map((key) => {
+      const otherFilters: DashboardFilters = {};
+      if (filters) {
+        for (const k of DIMENSION_KEYS) {
+          if (k !== key && filters[k]) otherFilters[k] = filters[k];
+        }
+      }
+      const { clause, params } = buildFilterClause(
+        Object.keys(otherFilters).length > 0 ? otherFilters : undefined
+      );
+      return clickhouse
         .query({
           query: `
-            SELECT DISTINCT ResourceAttributes['${key}'] AS value
+            SELECT DISTINCT ${dimExpr(key)} AS value
             FROM otel_logs
-            WHERE ServiceName = 'claude-code' AND value != ''
+            WHERE ServiceName = 'claude-code'
+              ${clause}
             ORDER BY value
           `,
+          query_params: params,
           format: "JSONEachRow",
         })
         .then((r) => r.json<{ value: string }>())
-        .then((rows) => rows.map((r) => r.value))
-    )
+        .then((rows) => rows.map((r) => r.value));
+    })
   );
   return {
     projects: results[0],

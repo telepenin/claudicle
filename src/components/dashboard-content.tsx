@@ -25,12 +25,22 @@ export function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/dimensions")
+  const fetchDimensions = useCallback(() => {
+    const params = new URLSearchParams();
+    for (const key of DIMENSION_KEYS) {
+      const v = filters[key];
+      if (v) params.set(key, v);
+    }
+    const qs = params.toString();
+    fetch(`/api/dimensions${qs ? `?${qs}` : ""}`)
       .then((r) => r.json())
       .then((data) => setDimensions(data))
       .catch(() => {});
-  }, []);
+  }, [filters]);
+
+  useEffect(() => {
+    fetchDimensions();
+  }, [fetchDimensions]);
 
   const fetchStats = useCallback(() => {
     setLoading(true);
@@ -84,10 +94,6 @@ export function DashboardContent() {
     developer: dimensions?.developers ?? [],
   };
 
-  const visibleDimensions = DIMENSION_KEYS.filter(
-    (key) => dimensionArrays[key].length > 0
-  );
-
   if (error && !stats) {
     return (
       <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
@@ -105,27 +111,25 @@ export function DashboardContent() {
 
   return (
     <>
-      {visibleDimensions.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-3">
-          {visibleDimensions.map((key) => (
-            <select
-              key={key}
-              value={filters[key] ?? ""}
-              onChange={(e) =>
-                handleFilterChange(key, e.target.value)
-              }
-              className="rounded-md border bg-background px-3 py-1.5 text-sm"
-            >
-              <option value="">All {DIMENSION_LABELS[key]}s</option>
-              {dimensionArrays[key].map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          ))}
-        </div>
-      )}
+      <div className="mb-6 flex flex-wrap gap-3">
+        {DIMENSION_KEYS.map((key) => (
+          <select
+            key={key}
+            value={filters[key] ?? ""}
+            onChange={(e) =>
+              handleFilterChange(key, e.target.value)
+            }
+            className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          >
+            <option value="">All {DIMENSION_LABELS[key]}s</option>
+            {dimensionArrays[key].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        ))}
+      </div>
 
       {loading && !stats ? (
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

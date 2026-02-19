@@ -6,8 +6,10 @@ receivers:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
+        include_metadata: true
       grpc:
         endpoint: 0.0.0.0:4317
+        include_metadata: true
 
   filelog/sessions:
     include:
@@ -22,10 +24,11 @@ receivers:
       - type: json_parser
         parse_from: body
         parse_to: attributes
-        timestamp:
-          parse_from: attributes.timestamp
-          layout: "2006-01-02T15:04:05.000Z07:00"
-          layout_type: gotime
+      - type: time_parser
+        if: 'attributes.timestamp != nil'
+        parse_from: attributes.timestamp
+        layout: "2006-01-02T15:04:05.000Z07:00"
+        layout_type: gotime
 
 extensions:
   file_storage:
@@ -44,6 +47,21 @@ processors:
     check_interval: 1s
     limit_mib: 1024
     spike_limit_mib: 256
+
+  resource/dimensions:
+    attributes:
+      - key: project
+        from_context: metadata.x-claude-project
+        action: upsert
+      - key: environment
+        from_context: metadata.x-claude-environment
+        action: upsert
+      - key: team
+        from_context: metadata.x-claude-team
+        action: upsert
+      - key: developer
+        from_context: metadata.x-claude-developer
+        action: upsert
 
   resource/sessions:
     attributes:
@@ -85,7 +103,7 @@ service:
   pipelines:
     logs/otel:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource/dimensions, batch]
       exporters: [clickhouse]
     logs/sessions:
       receivers: [filelog/sessions]
@@ -93,9 +111,9 @@ service:
       exporters: [clickhouse]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource/dimensions, batch]
       exporters: [clickhouse]
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource/dimensions, batch]
       exporters: [clickhouse]

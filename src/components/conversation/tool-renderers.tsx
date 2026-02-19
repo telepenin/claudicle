@@ -15,6 +15,7 @@ import {
   BookOpen,
   Code,
   Wrench,
+  Plug,
   CirclePlus,
   RefreshCw,
   ArrowRight,
@@ -69,6 +70,7 @@ export const TOOL_COLORS: Record<string, { border: string; bg: string }> = {
   ExitPlanMode: { border: "border-purple-400", bg: "bg-purple-50 dark:bg-purple-950/20" },
 };
 export const DEFAULT_TOOL_COLOR = { border: "border-gray-400", bg: "bg-gray-50 dark:bg-gray-950/20" };
+export const MCP_TOOL_COLOR = { border: "border-fuchsia-400", bg: "bg-fuchsia-50 dark:bg-fuchsia-950/20" };
 
 // Tools that render their own result content (skip generic result toggle)
 export const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch", "Task", "AskUserQuestion", "ExitPlanMode"]);
@@ -760,6 +762,99 @@ function ExitPlanModeToolCall({
   );
 }
 
+// ─── MCP ──────────────────────────────────────────────────────────────────
+
+/** Parse `mcp__<server>__<tool>` into readable parts, or return null. */
+export function parseMcpToolName(name: string): { server: string; tool: string } | null {
+  if (!name.startsWith("mcp__")) return null;
+  // mcp__plugin_context7_context7__resolve-library-id → server="context7", tool="resolve-library-id"
+  const withoutPrefix = name.slice(5); // drop "mcp__"
+  const lastDunder = withoutPrefix.lastIndexOf("__");
+  if (lastDunder === -1) return null;
+  const rawServer = withoutPrefix.slice(0, lastDunder);
+  const tool = withoutPrefix.slice(lastDunder + 2);
+  // Clean server: "plugin_context7_context7" → take last segment
+  const serverParts = rawServer.split("_");
+  const server = serverParts[serverParts.length - 1] || rawServer;
+  return { server, tool };
+}
+
+function McpToolCall({
+  name,
+  input,
+  resultContent,
+}: {
+  name: string;
+  input: Record<string, unknown>;
+  resultContent?: string;
+}) {
+  const parsed = parseMcpToolName(name);
+  const server = parsed?.server ?? "mcp";
+  const tool = parsed?.tool ?? name;
+  const [showResult, setShowResult] = useState(false);
+
+  const entries = Object.entries(input).filter(
+    ([, v]) => v !== undefined && v !== null
+  );
+
+  const resultLines = resultContent ? countLines(resultContent) : 0;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label={server} icon={Plug} />
+        <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4">
+          {tool}
+        </Badge>
+      </div>
+      {entries.length > 0 && (
+        <div className="text-xs space-y-0.5 pl-1">
+          {entries.map(([key, value]) => {
+            const display =
+              typeof value === "string"
+                ? value.length > 200
+                  ? value.slice(0, 200) + "…"
+                  : value
+                : JSON.stringify(value);
+            return (
+              <div key={key} className="flex gap-2">
+                <span className="text-muted-foreground font-mono shrink-0">
+                  {key}:
+                </span>
+                <span className="font-mono break-all">{display}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {resultContent && (
+        <div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowResult(!showResult)}
+          >
+            {showResult ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            <span>Result ({resultLines} lines)</span>
+          </button>
+          {showResult && (
+            <div className="mt-1 rounded-md bg-background p-3">
+              <CollapsibleMarkdown
+                text={resultContent}
+                maxLines={20}
+                defaultOpen={true}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Generic ─────────────────────────────────────────────────────────────
 
 function GenericToolCall({
@@ -905,6 +1000,9 @@ export function renderToolCallContent(
     case "ExitPlanMode":
       return <ExitPlanModeToolCall input={input} resultContent={resultContent} />;
     default:
+      if (name.startsWith("mcp__")) {
+        return <McpToolCall name={name} input={input} resultContent={resultContent} />;
+      }
       return <GenericToolCall name={name} input={input} />;
   }
 }

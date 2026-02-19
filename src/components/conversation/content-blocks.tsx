@@ -15,6 +15,7 @@ import {
   renderToolCallContent,
   TOOL_COLORS,
   DEFAULT_TOOL_COLOR,
+  MCP_TOOL_COLOR,
   SELF_RENDERING_TOOLS,
 } from "./tool-renderers";
 import type { ParsedContent, ToolResultInfo, TaskTimelineItem } from "@/lib/turn-grouping";
@@ -72,9 +73,10 @@ export function ToolUseBlock({
   const input = (block.input as Record<string, unknown>) ?? {};
   const [showResult, setShowResult] = useState(false);
 
-  const colors = TOOL_COLORS[name] ?? DEFAULT_TOOL_COLOR;
+  const isMcp = name.startsWith("mcp__");
+  const colors = TOOL_COLORS[name] ?? (isMcp ? MCP_TOOL_COLOR : DEFAULT_TOOL_COLOR);
   const borderClass = resultInfo?.isError ? "border-red-400" : colors.border;
-  const selfRendering = SELF_RENDERING_TOOLS.has(name);
+  const selfRendering = SELF_RENDERING_TOOLS.has(name) || isMcp;
 
   return (
     <div className={`my-2 border-l-2 ${borderClass} px-3 py-1 rounded-r-md ${colors.bg}`}>
