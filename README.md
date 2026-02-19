@@ -37,6 +37,16 @@ export OTEL_LOG_USER_PROMPTS=1
 export OTEL_LOG_TOOL_DETAILS=1
 ```
 
+Add resource attributes for dashboard filtering:
+
+```bash
+# Required: set project name for dashboard filtering
+export OTEL_RESOURCE_ATTRIBUTES="project=my-project"
+
+# Optional: add more dimensions (defaults: environment=local, team=default, developer=default)
+export OTEL_RESOURCE_ATTRIBUTES="project=my-project,environment=local,team=platform,developer=nikolay"
+```
+
 ### 3. (Optional) Enable full session logs
 
 Run the OTel Collector locally to get full conversation transcripts including Claude's responses:

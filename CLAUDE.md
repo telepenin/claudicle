@@ -58,7 +58,7 @@ curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSW
 
 All data lives in the canonical OTel schema table `otel_logs` (auto-created by the ClickHouse exporter).
 
-**OTel events** (`ServiceName = 'claude-code'`) — canonical columns: `Timestamp`, `Body`, `SeverityText`, `LogAttributes` (map), `ResourceAttributes` (map), `ServiceName`. Event types in `LogAttributes['event.name']`: `user_prompt`, `tool_result`, `api_request`, `api_error`, `tool_decision`.
+**OTel events** (`ServiceName = 'claude-code'`) — canonical columns: `Timestamp`, `Body`, `SeverityText`, `LogAttributes` (map), `ResourceAttributes` (map), `ServiceName`. Event types in `LogAttributes['event.name']`: `user_prompt`, `tool_result`, `api_request`, `api_error`, `tool_decision`. Dashboard filters use `ResourceAttributes` keys: `project`, `environment`, `team`, `developer` (set via `OTEL_RESOURCE_ATTRIBUTES`).
 
 **JSONL session logs** (`ResourceAttributes['source'] = 'claude_jsonl'`) — full conversation transcripts. Message type in `LogAttributes['type']`, session ID in `LogAttributes['sessionId']`, raw JSON in `Body`, file path in `ResourceAttributes['log.file.path']`.
 
@@ -67,7 +67,8 @@ All data lives in the canonical OTel schema table `otel_logs` (auto-created by t
 - `GET /api/logs` — JSONL session list with message counts (pagination: `page`, `limit`, `search`, `from`, `to`)
 - `GET /api/logs/[id]` — full conversation for a JSONL session ordered by timestamp
 - `GET /api/logs/[id]/text` — plain-text export of a conversation
-- `GET /api/stats` — aggregate stats for dashboard charts
+- `GET /api/stats` — aggregate stats for dashboard charts (accepts `project`, `environment`, `team`, `developer` query params)
+- `GET /api/dimensions` — distinct values for each resource attribute dimension
 
 ## Key Source Locations
 

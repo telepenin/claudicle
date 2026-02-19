@@ -75,3 +75,17 @@ export interface LogConversation {
   messages: LogMessage[];
   project_path: string;
 }
+
+export interface DashboardFilters {
+  project?: string;
+  environment?: string;
+  team?: string;
+  developer?: string;
+}
+
+export interface DimensionValues {
+  projects: string[];
+  environments: string[];
+  teams: string[];
+  developers: string[];
+}

@@ -17,17 +17,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { StatsResponse } from "@/lib/types";
 
-export function DashboardCharts() {
-  const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+export function DashboardCharts({ data }: { data?: StatsResponse }) {
+  const [stats, setStats] = useState<StatsResponse | null>(data ?? null);
+  const [loading, setLoading] = useState(!data);
 
   useEffect(() => {
+    if (data) {
+      setStats(data);
+      setLoading(false);
+      return;
+    }
     fetch("/api/stats")
       .then((r) => r.json())
-      .then((data) => setStats(data))
+      .then((d) => setStats(d))
       .catch((e) => console.error("Failed to fetch stats:", e))
       .finally(() => setLoading(false));
-  }, []);
+  }, [data]);
 
   if (loading) {
     return (

@@ -10,9 +10,60 @@ import type {
   LogListResponse,
   LogMessage,
   LogConversation,
+  DashboardFilters,
+  DimensionValues,
 } from "@/lib/types";
 
-export async function getStats(): Promise<StatsResponse> {
+const DIMENSION_KEYS = ["project", "environment", "team", "developer"] as const;
+
+function buildFilterClause(filters?: DashboardFilters): {
+  clause: string;
+  params: Record<string, string>;
+} {
+  if (!filters) return { clause: "", params: {} };
+  let clause = "";
+  const params: Record<string, string> = {};
+  for (const key of DIMENSION_KEYS) {
+    const value = filters[key];
+    if (value) {
+      clause += ` AND ResourceAttributes['${key}'] = {filter_${key}:String}`;
+      params[`filter_${key}`] = value;
+    }
+  }
+  return { clause, params };
+}
+
+export async function getDimensions(): Promise<DimensionValues> {
+  const results = await Promise.all(
+    DIMENSION_KEYS.map((key) =>
+      clickhouse
+        .query({
+          query: `
+            SELECT DISTINCT ResourceAttributes['${key}'] AS value
+            FROM otel_logs
+            WHERE ServiceName = 'claude-code' AND value != ''
+            ORDER BY value
+          `,
+          format: "JSONEachRow",
+        })
+        .then((r) => r.json<{ value: string }>())
+        .then((rows) => rows.map((r) => r.value))
+    )
+  );
+  return {
+    projects: results[0],
+    environments: results[1],
+    teams: results[2],
+    developers: results[3],
+  };
+}
+
+export async function getStats(
+  filters?: DashboardFilters
+): Promise<StatsResponse> {
+  const { clause: filterClause, params: filterParams } =
+    buildFilterClause(filters);
+
   const [
     totalsResult,
     costResult,
@@ -32,7 +83,9 @@ export async function getStats(): Promise<StatsResponse> {
         FROM otel_logs
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['session.id'] != ''
+          ${filterClause}
       `,
+      query_params: filterParams,
       format: "JSONEachRow",
     }),
     clickhouse.query({
@@ -44,9 +97,11 @@ export async function getStats(): Promise<StatsResponse> {
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['event.name'] = 'api_request'
           AND Timestamp >= now() - INTERVAL 30 DAY
+          ${filterClause}
         GROUP BY date
         ORDER BY date
       `,
+      query_params: filterParams,
       format: "JSONEachRow",
     }),
     clickhouse.query({
@@ -59,9 +114,11 @@ export async function getStats(): Promise<StatsResponse> {
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['event.name'] = 'api_request'
           AND Timestamp >= now() - INTERVAL 30 DAY
+          ${filterClause}
         GROUP BY date
         ORDER BY date
       `,
+      query_params: filterParams,
       format: "JSONEachRow",
     }),
     clickhouse.query({
@@ -74,10 +131,12 @@ export async function getStats(): Promise<StatsResponse> {
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['event.name'] = 'api_request'
           AND LogAttributes['model'] != ''
+          ${filterClause}
         GROUP BY model
         ORDER BY count DESC
         LIMIT 10
       `,
+      query_params: filterParams,
       format: "JSONEachRow",
     }),
     clickhouse.query({
@@ -90,10 +149,12 @@ export async function getStats(): Promise<StatsResponse> {
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['event.name'] = 'tool_result'
           AND LogAttributes['tool_name'] != ''
+          ${filterClause}
         GROUP BY tool
         ORDER BY count DESC
         LIMIT 10
       `,
+      query_params: filterParams,
       format: "JSONEachRow",
     }),
     clickhouse.query({
@@ -104,9 +165,11 @@ export async function getStats(): Promise<StatsResponse> {
         FROM otel_logs
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['event.name'] != ''
+          ${filterClause}
         GROUP BY event_name
         ORDER BY count DESC
       `,
+      query_params: filterParams,
       format: "JSONEachRow",
     }),
   ]);

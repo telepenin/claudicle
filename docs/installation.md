@@ -78,7 +78,24 @@ Or export the environment variable before running Claude Code:
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ```
 
-### 5. Start the Next.js app
+### 5. Set Resource Attributes
+
+Add custom resource attributes so the dashboard can filter by project, environment, team, and developer:
+
+```bash
+export OTEL_RESOURCE_ATTRIBUTES="project=my-project,environment=local,team=platform,developer=nikolay"
+```
+
+| Attribute | Key | Required | Default | Example |
+|-----------|-----|----------|---------|---------|
+| Project | `project` | Yes (must set) | — | `claudicle` |
+| Environment | `environment` | No | `local` | `local`, `ci`, `codespace` |
+| Team | `team` | No | `default` | `platform`, `frontend` |
+| Developer | `developer` | No | `default` | `nikolay` |
+
+These values appear as filter dropdowns in the dashboard. Only dimensions with data in ClickHouse are shown.
+
+### 6. Start the Next.js app
 
 ```bash
 npm install
