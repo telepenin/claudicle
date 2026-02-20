@@ -12,6 +12,7 @@ import type {
   LogConversation,
   DashboardFilters,
   DimensionValues,
+  SessionFile,
 } from "@/lib/types";
 
 const DIMENSION_KEYS = ["project", "environment", "team", "developer"] as const;
@@ -404,4 +405,46 @@ export async function getLogConversation(
   const projectPath = messages[0]?.file ?? "";
 
   return { session_id: sessionId, messages, project_path: projectPath };
+}
+
+/**
+ * Extract the portable archive path from an absolute file_path.
+ * Strips everything up to and including ".claude/projects/" so the
+ * result starts with the encoded project dir, e.g.:
+ *   /Users/nick/.claude/projects/-Users-nick-src-proj/abc.jsonl
+ *   → -Users-nick-src-proj/abc.jsonl
+ */
+function toArchivePath(filePath: string): string {
+  const marker = ".claude/projects/";
+  const idx = filePath.indexOf(marker);
+  return idx === -1 ? filePath : filePath.slice(idx + marker.length);
+}
+
+export async function getSessionFiles(
+  sessionId: string
+): Promise<SessionFile[]> {
+  const result = await clickhouse.query({
+    query: `
+      SELECT file_path, raw
+      FROM mv_jsonl_messages
+      WHERE session_id = {sessionId:String}
+      ORDER BY file_path, msg_timestamp ASC
+    `,
+    query_params: { sessionId },
+    format: "JSONEachRow",
+  });
+
+  const rows = await result.json<{ file_path: string; raw: string }>();
+
+  const fileMap = new Map<string, string[]>();
+  for (const row of rows) {
+    const lines = fileMap.get(row.file_path) ?? [];
+    lines.push(row.raw);
+    fileMap.set(row.file_path, lines);
+  }
+
+  return [...fileMap.entries()].map(([filePath, lines]) => ({
+    archive_path: toArchivePath(filePath),
+    content: lines.join("\n") + "\n",
+  }));
 }

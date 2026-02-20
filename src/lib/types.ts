@@ -89,3 +89,8 @@ export interface DimensionValues {
   teams: string[];
   developers: string[];
 }
+
+export interface SessionFile {
+  archive_path: string;  // path relative to ~/.claude/projects/
+  content: string;       // full JSONL content (rows joined with \n)
+}
