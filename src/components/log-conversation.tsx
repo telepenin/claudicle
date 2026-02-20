@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Download } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LogConversation, LogMessage } from "@/lib/types";
 import {
@@ -136,6 +137,16 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
             Raw JSONL
           </button>
         </div>
+
+        {/* Download archive */}
+        <a
+          href={`/api/logs/${sessionId}/archive`}
+          download
+          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download .tar.gz
+        </a>
 
       </div>
 
