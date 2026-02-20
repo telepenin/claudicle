@@ -17,6 +17,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { StatsResponse } from "@/lib/types";
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+}
+
 export function DashboardCharts({ data }: { data?: StatsResponse }) {
   const [stats, setStats] = useState<StatsResponse | null>(data ?? null);
   const [loading, setLoading] = useState(!data);
@@ -218,9 +224,7 @@ export function DashboardCharts({ data }: { data?: StatsResponse }) {
                   <div className="flex gap-3 text-muted-foreground">
                     <span>{Number(t.count).toLocaleString()}x</span>
                     {Number(t.avg_duration_ms) > 0 && (
-                      <span>
-                        avg {Math.round(Number(t.avg_duration_ms))}ms
-                      </span>
+                      <span>avg {formatDuration(Number(t.avg_duration_ms))}</span>
                     )}
                   </div>
                 </div>
