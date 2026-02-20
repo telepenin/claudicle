@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLogSessionList } from "@/lib/queries";
+import type { DashboardFilters } from "@/lib/types";
+
+const FILTER_KEYS = ["project", "environment", "team", "developer"] as const;
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +15,13 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get("from") ?? undefined;
     const to = searchParams.get("to") ?? undefined;
 
-    const data = await getLogSessionList({ page, limit, search, from, to });
+    const filters: DashboardFilters = {};
+    for (const key of FILTER_KEYS) {
+      const v = searchParams.get(key);
+      if (v) filters[key] = v;
+    }
+
+    const data = await getLogSessionList({ page, limit, search, from, to, filters });
     return NextResponse.json(data);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

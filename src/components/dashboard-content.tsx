@@ -7,58 +7,27 @@ import { StatCard } from "@/components/stat-card";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCost, formatTokens, formatRelativeTime, extractProject } from "@/lib/format";
-import type { StatsResponse, DimensionValues, DashboardFilters, LogSessionSummary } from "@/lib/types";
-
-const DIMENSION_KEYS = ["project", "environment", "team", "developer"] as const;
-const DIMENSION_LABELS: Record<string, string> = {
-  project: "Project",
-  environment: "Environment",
-  team: "Team",
-  developer: "Developer",
-};
+import { useGlobalFilters } from "@/lib/use-global-filters";
+import type { StatsResponse, LogSessionSummary } from "@/lib/types";
 
 export function DashboardContent() {
-  const [dimensions, setDimensions] = useState<DimensionValues | null>(null);
-  const [filters, setFilters] = useState<DashboardFilters>({});
+  const { filterQueryString } = useGlobalFilters();
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [recentLogs, setRecentLogs] = useState<LogSessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDimensions = useCallback(() => {
-    const params = new URLSearchParams();
-    for (const key of DIMENSION_KEYS) {
-      const v = filters[key];
-      if (v) params.set(key, v);
-    }
-    const qs = params.toString();
-    fetch(`/api/dimensions${qs ? `?${qs}` : ""}`)
-      .then((r) => r.json())
-      .then((data) => setDimensions(data))
-      .catch(() => {});
-  }, [filters]);
-
-  useEffect(() => {
-    fetchDimensions();
-  }, [fetchDimensions]);
-
   const fetchStats = useCallback(() => {
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams();
-    for (const key of DIMENSION_KEYS) {
-      const v = filters[key];
-      if (v) params.set(key, v);
-    }
-    const qs = params.toString();
-    const statsUrl = `/api/stats${qs ? `?${qs}` : ""}`;
+    const statsUrl = `/api/stats${filterQueryString ? `?${filterQueryString}` : ""}`;
 
     Promise.all([
       fetch(statsUrl).then((r) => {
         if (!r.ok) throw new Error(`Stats: ${r.status}`);
         return r.json();
       }),
-      fetch("/api/logs?limit=5").then((r) => {
+      fetch(`/api/logs?limit=5${filterQueryString ? `&${filterQueryString}` : ""}`).then((r) => {
         if (!r.ok) throw new Error(`Logs: ${r.status}`);
         return r.json();
       }),
@@ -69,30 +38,11 @@ export function DashboardContent() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [filters]);
+  }, [filterQueryString]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
-
-  const handleFilterChange = (key: keyof DashboardFilters, value: string) => {
-    setFilters((prev) => {
-      const next = { ...prev };
-      if (value) {
-        next[key] = value;
-      } else {
-        delete next[key];
-      }
-      return next;
-    });
-  };
-
-  const dimensionArrays: Record<string, string[]> = {
-    project: dimensions?.projects ?? [],
-    environment: dimensions?.environments ?? [],
-    team: dimensions?.teams ?? [],
-    developer: dimensions?.developers ?? [],
-  };
 
   if (error && !stats) {
     return (
@@ -111,26 +61,6 @@ export function DashboardContent() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap gap-3">
-        {DIMENSION_KEYS.map((key) => (
-          <select
-            key={key}
-            value={filters[key] ?? ""}
-            onChange={(e) =>
-              handleFilterChange(key, e.target.value)
-            }
-            className="rounded-md border bg-background px-3 py-1.5 text-sm"
-          >
-            <option value="">All {DIMENSION_LABELS[key]}s</option>
-            {dimensionArrays[key].map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        ))}
-      </div>
-
       {loading && !stats ? (
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (

@@ -224,18 +224,47 @@ export async function getStats(
   };
 }
 
+/**
+ * Build a `session_id IN (...)` subquery that resolves dimension filters
+ * (project, environment, team, developer) against OTel events, which carry
+ * those resource attributes. JSONL MVs don't have them, so we join by session ID.
+ */
+function buildSessionFilterClause(filters?: DashboardFilters): {
+  clause: string;
+  params: Record<string, string>;
+} {
+  if (!filters) return { clause: "", params: {} };
+  const { clause: dimClause, params: dimParams } = buildFilterClause(filters);
+  if (!dimClause) return { clause: "", params: {} };
+  return {
+    clause: ` AND session_id IN (
+      SELECT DISTINCT LogAttributes['session.id']
+      FROM otel_logs
+      WHERE ServiceName = 'claude-code'
+        AND LogAttributes['session.id'] != ''
+        ${dimClause}
+    )`,
+    params: dimParams,
+  };
+}
+
 export async function getLogSessionList(params: {
   page?: number;
   limit?: number;
   search?: string;
   from?: string;
   to?: string;
+  filters?: DashboardFilters;
 }): Promise<LogListResponse> {
   const page = params.page ?? 1;
   const limit = params.limit ?? 20;
   const offset = (page - 1) * limit;
 
-  const hasFilters = params.search || params.from || params.to;
+  const { clause: sessionFilterClause, params: sessionFilterParams } =
+    buildSessionFilterClause(params.filters);
+  const hasDimensionFilters = !!sessionFilterClause;
+  const hasSearchFilters = params.search || params.from || params.to;
+  const hasFilters = hasSearchFilters || hasDimensionFilters;
 
   // Fast path: use pre-aggregated MV when no filters
   if (!hasFilters) {
@@ -307,6 +336,10 @@ export async function getLogSessionList(params: {
   if (params.to) {
     whereClause += " AND msg_timestamp <= {to:DateTime64(9)}";
     queryParams.to = params.to;
+  }
+  if (sessionFilterClause) {
+    whereClause += sessionFilterClause;
+    Object.assign(queryParams, sessionFilterParams);
   }
 
   const countResult = await clickhouse.query({

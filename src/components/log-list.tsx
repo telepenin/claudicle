@@ -25,9 +25,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { formatRelativeTime, extractProject } from "@/lib/format";
+import { useGlobalFilters } from "@/lib/use-global-filters";
 import type { LogListResponse } from "@/lib/types";
 
 export function LogList() {
+  const { filterQueryString } = useGlobalFilters();
   const [data, setData] = useState<LogListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -42,6 +44,10 @@ export function LogList() {
         limit: String(limit),
       });
       if (search) params.set("search", search);
+      if (filterQueryString) {
+        const filterParams = new URLSearchParams(filterQueryString);
+        filterParams.forEach((v, k) => params.set(k, v));
+      }
       const res = await fetch(`/api/logs?${params}`);
       const json = await res.json();
       setData(json);
@@ -50,7 +56,7 @@ export function LogList() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, filterQueryString]);
 
   useEffect(() => {
     fetchLogs();

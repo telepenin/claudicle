@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { NavLink } from "@/components/nav-link";
 import { Activity } from "lucide-react";
 
@@ -10,8 +11,10 @@ export function Header() {
           <span>Claudicle</span>
         </div>
         <nav className="flex items-center gap-4">
-          <NavLink href="/">Dashboard</NavLink>
-          <NavLink href="/logs">Logs</NavLink>
+          <Suspense>
+            <NavLink href="/">Dashboard</NavLink>
+            <NavLink href="/logs">Logs</NavLink>
+          </Suspense>
         </nav>
       </div>
     </header>
