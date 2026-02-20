@@ -31,13 +31,14 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [live, setLive] = useState(false);
+  const [copiedResume, setCopiedResume] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
+  const live = searchParams.get("live") === "1";
   const viewMode: ViewMode = searchParams.get("view") === "raw" ? "raw" : "rendered";
 
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -65,6 +66,40 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
+  // SSE live tail
+  useEffect(() => {
+    if (!live || !data || data.messages.length === 0) return;
+
+    const lastTs = data.messages[data.messages.length - 1].msg_timestamp;
+    const es = new EventSource(
+      `/api/logs/${sessionId}/stream?after=${encodeURIComponent(lastTs)}`
+    );
+
+    es.onmessage = (event) => {
+      try {
+        const newMessages: LogMessage[] = JSON.parse(event.data);
+        if (newMessages.length > 0) {
+          setData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              messages: [...prev.messages, ...newMessages],
+            };
+          });
+          // Auto-scroll to bottom
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    es.onerror = () => {
+      // EventSource will auto-reconnect; nothing to do
+    };
+
+    return () => es.close();
+  }, [live, sessionId, data?.messages.length]);
 
   const { mainMessages, subagentMap } = useMemo(() => {
     if (!data) return { mainMessages: [], subagentMap: new Map<string, LogMessage[]>() };
@@ -141,6 +176,32 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
           </button>
         </div>
 
+        {/* Live toggle */}
+        <button
+          onClick={() => {
+            const params = new URLSearchParams(searchParams.toString());
+            if (live) {
+              params.delete("live");
+            } else {
+              params.set("live", "1");
+            }
+            const qs = params.toString();
+            router.push(qs ? `${pathname}?${qs}` : pathname);
+          }}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+            live
+              ? "border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              live ? "animate-pulse bg-green-500" : "bg-muted-foreground/40"
+            }`}
+          />
+          Live
+        </button>
+
         {/* Download archive */}
         <div className="flex items-center gap-1">
           <a
@@ -163,6 +224,19 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
           >
             {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied!" : "Copy curl"}
+          </button>
+          <button
+            title={`curl -f ${typeof window !== "undefined" ? window.location.origin : ""}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/ && claude --resume ${sessionId}`}
+            onClick={() => {
+              const cmd = `curl -f ${window.location.origin}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/ && claude --resume ${sessionId}`;
+              navigator.clipboard.writeText(cmd);
+              setCopiedResume(true);
+              setTimeout(() => setCopiedResume(false), 2000);
+            }}
+            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {copiedResume ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copiedResume ? "Copied!" : "Copy resume"}
           </button>
         </div>
 
@@ -198,6 +272,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
           })}
         </div>
       )}
+      <div ref={bottomRef} />
     </div>
   );
 }
