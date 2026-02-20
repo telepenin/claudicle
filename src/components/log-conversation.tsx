@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Download } from "lucide-react";
+import { Download, Copy, Check } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LogConversation, LogMessage } from "@/lib/types";
 import {
@@ -30,6 +30,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<LogConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -139,14 +140,29 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
         </div>
 
         {/* Download archive */}
-        <a
-          href={`/api/logs/${sessionId}/archive`}
-          download
-          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Download .tar.gz
-        </a>
+        <div className="flex items-center gap-1">
+          <a
+            href={`/api/logs/${sessionId}/archive`}
+            download
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download .tar.gz
+          </a>
+          <button
+            title={`curl ${typeof window !== "undefined" ? window.location.origin : ""}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`}
+            onClick={() => {
+              const cmd = `curl ${window.location.origin}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`;
+              navigator.clipboard.writeText(cmd);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied!" : "Copy curl"}
+          </button>
+        </div>
 
       </div>
 
