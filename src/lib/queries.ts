@@ -423,14 +423,19 @@ function toArchivePath(filePath: string): string {
 export async function getSessionFiles(
   sessionId: string
 ): Promise<SessionFile[]> {
+  // Filter by file_path containing the session UUID, not by session_id field.
+  // The session_id field inside JSONL lines is NOT unique per file — resumed/continued
+  // sessions carry the same sessionId but write to different JSONL files. The UUID
+  // in the file path is the reliable identifier for which physical files belong here
+  // (main JSONL + subagent files nested under <uuid>/subagents/).
   const result = await clickhouse.query({
     query: `
       SELECT file_path, raw
       FROM mv_jsonl_messages
-      WHERE session_id = {sessionId:String}
+      WHERE file_path LIKE {pattern:String}
       ORDER BY file_path, msg_timestamp ASC
     `,
-    query_params: { sessionId },
+    query_params: { pattern: `%${sessionId}%` },
     format: "JSONEachRow",
   });
 
