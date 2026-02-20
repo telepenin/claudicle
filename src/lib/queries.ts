@@ -17,12 +17,11 @@ import type {
 
 const DIMENSION_KEYS = ["project", "environment", "team", "developer"] as const;
 
-/** SQL expression that coalesces empty resource attribute to 'default'. */
-function dimExpr(key: string): string {
-  return `if(ResourceAttributes['${key}'] = '', 'default', ResourceAttributes['${key}'])`;
-}
-
-function buildFilterClause(filters?: DashboardFilters): {
+/**
+ * Build a filter clause for the otel_events typed table.
+ * Uses plain column references instead of Map access.
+ */
+function buildOtelFilterClause(filters?: DashboardFilters): {
   clause: string;
   params: Record<string, string>;
 } {
@@ -32,7 +31,7 @@ function buildFilterClause(filters?: DashboardFilters): {
   for (const key of DIMENSION_KEYS) {
     const value = filters[key];
     if (value) {
-      clause += ` AND ${dimExpr(key)} = {filter_${key}:String}`;
+      clause += ` AND ${key} = {filter_${key}:String}`;
       params[`filter_${key}`] = value;
     }
   }
@@ -52,15 +51,15 @@ export async function getDimensions(
           if (k !== key && filters[k]) otherFilters[k] = filters[k];
         }
       }
-      const { clause, params } = buildFilterClause(
+      const { clause, params } = buildOtelFilterClause(
         Object.keys(otherFilters).length > 0 ? otherFilters : undefined
       );
       return clickhouse
         .query({
           query: `
-            SELECT DISTINCT ${dimExpr(key)} AS value
-            FROM otel_logs
-            WHERE ServiceName = 'claude-code'
+            SELECT DISTINCT ${key} AS value
+            FROM otel_events
+            WHERE 1=1
               ${clause}
             ORDER BY value
           `,
@@ -83,7 +82,7 @@ export async function getStats(
   filters?: DashboardFilters
 ): Promise<StatsResponse> {
   const { clause: filterClause, params: filterParams } =
-    buildFilterClause(filters);
+    buildOtelFilterClause(filters);
 
   const [
     totalsResult,
@@ -96,14 +95,12 @@ export async function getStats(
     clickhouse.query({
       query: `
         SELECT
-          count(DISTINCT LogAttributes['session.id']) as sessions,
+          count(DISTINCT session_id) as sessions,
           count() as events,
-          sum(toFloat64OrZero(LogAttributes['cost_usd'])) as cost,
-          sum(toFloat64OrZero(LogAttributes['input_tokens'])) +
-          sum(toFloat64OrZero(LogAttributes['output_tokens'])) as tokens
-        FROM otel_logs
-        WHERE ServiceName = 'claude-code'
-          AND LogAttributes['session.id'] != ''
+          sum(cost_usd) as cost,
+          sum(input_tokens) + sum(output_tokens) as tokens
+        FROM otel_events
+        WHERE session_id != ''
           ${filterClause}
       `,
       query_params: filterParams,
@@ -112,12 +109,11 @@ export async function getStats(
     clickhouse.query({
       query: `
         SELECT
-          toDate(Timestamp) as date,
-          sum(toFloat64OrZero(LogAttributes['cost_usd'])) as cost
-        FROM otel_logs
-        WHERE ServiceName = 'claude-code'
-          AND LogAttributes['event.name'] = 'api_request'
-          AND Timestamp >= now() - INTERVAL 30 DAY
+          toDate(ts) as date,
+          sum(cost_usd) as cost
+        FROM otel_events
+        WHERE event_name = 'api_request'
+          AND ts >= now() - INTERVAL 30 DAY
           ${filterClause}
         GROUP BY date
         ORDER BY date
@@ -128,13 +124,12 @@ export async function getStats(
     clickhouse.query({
       query: `
         SELECT
-          toDate(Timestamp) as date,
-          sum(toFloat64OrZero(LogAttributes['input_tokens'])) as input_tokens,
-          sum(toFloat64OrZero(LogAttributes['output_tokens'])) as output_tokens
-        FROM otel_logs
-        WHERE ServiceName = 'claude-code'
-          AND LogAttributes['event.name'] = 'api_request'
-          AND Timestamp >= now() - INTERVAL 30 DAY
+          toDate(ts) as date,
+          sum(input_tokens) as input_tokens,
+          sum(output_tokens) as output_tokens
+        FROM otel_events
+        WHERE event_name = 'api_request'
+          AND ts >= now() - INTERVAL 30 DAY
           ${filterClause}
         GROUP BY date
         ORDER BY date
@@ -145,13 +140,12 @@ export async function getStats(
     clickhouse.query({
       query: `
         SELECT
-          LogAttributes['model'] as model,
+          model,
           count() as count,
-          sum(toFloat64OrZero(LogAttributes['cost_usd'])) as cost
-        FROM otel_logs
-        WHERE ServiceName = 'claude-code'
-          AND LogAttributes['event.name'] = 'api_request'
-          AND LogAttributes['model'] != ''
+          sum(cost_usd) as cost
+        FROM otel_events
+        WHERE event_name = 'api_request'
+          AND model != ''
           ${filterClause}
         GROUP BY model
         ORDER BY count DESC
@@ -163,18 +157,17 @@ export async function getStats(
     clickhouse.query({
       query: `
         SELECT
-          LogAttributes['tool_name'] as tool,
+          tool_name as tool,
           count() as count,
-          avg(toFloat64OrZero(LogAttributes['duration_ms'])) as avg_duration_ms,
-          min(toFloat64OrZero(LogAttributes['duration_ms'])) as min_duration_ms,
-          max(toFloat64OrZero(LogAttributes['duration_ms'])) as max_duration_ms,
-          countIf(LogAttributes['success'] = 'true') / count() * 100 as success_pct
-        FROM otel_logs
-        WHERE ServiceName = 'claude-code'
-          AND LogAttributes['event.name'] = 'tool_result'
-          AND LogAttributes['tool_name'] != ''
+          avg(duration_ms) as avg_duration_ms,
+          min(duration_ms) as min_duration_ms,
+          max(duration_ms) as max_duration_ms,
+          countIf(success = 'true') / count() * 100 as success_pct
+        FROM otel_events
+        WHERE event_name = 'tool_result'
+          AND tool_name != ''
           ${filterClause}
-        GROUP BY tool
+        GROUP BY tool_name
         ORDER BY count DESC
         LIMIT 20
       `,
@@ -184,11 +177,10 @@ export async function getStats(
     clickhouse.query({
       query: `
         SELECT
-          LogAttributes['event.name'] as event_name,
+          event_name,
           count() as count
-        FROM otel_logs
-        WHERE ServiceName = 'claude-code'
-          AND LogAttributes['event.name'] != ''
+        FROM otel_events
+        WHERE event_name != ''
           ${filterClause}
         GROUP BY event_name
         ORDER BY count DESC
@@ -230,22 +222,21 @@ export async function getStats(
 
 /**
  * Build a `session_id IN (...)` subquery that resolves dimension filters
- * (project, environment, team, developer) against OTel events, which carry
- * those resource attributes. JSONL MVs don't have them, so we join by session ID.
+ * against otel_events (which has typed dimension columns).
+ * JSONL tables don't have dimension attributes, so we join by session ID.
  */
 function buildSessionFilterClause(filters?: DashboardFilters): {
   clause: string;
   params: Record<string, string>;
 } {
   if (!filters) return { clause: "", params: {} };
-  const { clause: dimClause, params: dimParams } = buildFilterClause(filters);
+  const { clause: dimClause, params: dimParams } = buildOtelFilterClause(filters);
   if (!dimClause) return { clause: "", params: {} };
   return {
     clause: ` AND session_id IN (
-      SELECT DISTINCT LogAttributes['session.id']
-      FROM otel_logs
-      WHERE ServiceName = 'claude-code'
-        AND LogAttributes['session.id'] != ''
+      SELECT DISTINCT session_id
+      FROM otel_events
+      WHERE session_id != ''
         ${dimClause}
     )`,
     params: dimParams,
@@ -272,7 +263,7 @@ export async function getLogSessionList(params: {
 
   // Fast path: use pre-aggregated MV when no filters
   if (!hasFilters) {
-    const [countResult, result, subagentResult] = await Promise.all([
+    const [countResult, result] = await Promise.all([
       clickhouse.query({
         query: `SELECT count() as total FROM (SELECT session_id FROM mv_jsonl_sessions GROUP BY session_id)`,
         format: "JSONEachRow",
@@ -287,7 +278,10 @@ export async function getLogSessionList(params: {
             countIfMerge(user_count) AS user_count,
             countIfMerge(assistant_count) AS assistant_count,
             countIfMerge(other_count) AS tool_count,
-            anyMerge(project_path) AS project_path
+            anyMerge(project_path) AS project_path,
+            uniqIfMerge(subagent_count) AS subagent_count,
+            countIfMerge(error_count) AS error_count,
+            countIfMerge(mcp_tool_count) AS mcp_tool_count
           FROM mv_jsonl_sessions
           GROUP BY session_id
           ORDER BY last_timestamp DESC
@@ -297,36 +291,15 @@ export async function getLogSessionList(params: {
         query_params: { limit, offset },
         format: "JSONEachRow",
       }),
-      clickhouse.query({
-        query: `
-          SELECT
-            session_id,
-            uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
-            countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count,
-            countIf(msg_type = 'assistant' AND position(raw, '"name":"mcp__') > 0) as mcp_tool_count
-          FROM mv_jsonl_messages
-          GROUP BY session_id
-          HAVING subagent_count > 0 OR error_count > 0 OR mcp_tool_count > 0
-        `,
-        format: "JSONEachRow",
-      }),
     ]);
 
     const countRows = await countResult.json<{ total: string }>();
     const total = Number(countRows[0]?.total ?? 0);
     const sessions = await result.json<LogSessionSummary>();
-    const extraRows = await subagentResult.json<{ session_id: string; subagent_count: string; error_count: string; mcp_tool_count: string }>();
-    const extraMap = new Map(extraRows.map((r) => [r.session_id, { subagent_count: Number(r.subagent_count), error_count: Number(r.error_count), mcp_tool_count: Number(r.mcp_tool_count) }]));
-    for (const s of sessions) {
-      const extra = extraMap.get(s.session_id);
-      s.subagent_count = extra?.subagent_count ?? 0;
-      s.error_count = extra?.error_count ?? 0;
-      s.mcp_tool_count = extra?.mcp_tool_count ?? 0;
-    }
     return { sessions, total, page, limit };
   }
 
-  // Filtered path: use messages MV with typed columns (no map access)
+  // Filtered path: use jsonl_messages with typed columns
   let whereClause = "WHERE 1=1";
   const queryParams: Record<string, string | number> = {};
 
@@ -349,7 +322,7 @@ export async function getLogSessionList(params: {
   }
 
   const countResult = await clickhouse.query({
-    query: `SELECT count(DISTINCT session_id) as total FROM mv_jsonl_messages ${whereClause}`,
+    query: `SELECT count(DISTINCT session_id) as total FROM jsonl_messages ${whereClause}`,
     query_params: queryParams,
     format: "JSONEachRow",
   });
@@ -370,7 +343,7 @@ export async function getLogSessionList(params: {
         uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
         countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count,
         countIf(msg_type = 'assistant' AND position(raw, '"name":"mcp__') > 0) as mcp_tool_count
-      FROM mv_jsonl_messages
+      FROM jsonl_messages
       ${whereClause}
       GROUP BY session_id
       ORDER BY last_timestamp DESC
@@ -399,7 +372,7 @@ export async function getLogConversation(
         file_path as file,
         is_sidechain,
         agent_id
-      FROM mv_jsonl_messages
+      FROM jsonl_messages
       WHERE session_id = {sessionId:String}
       ORDER BY msg_timestamp ASC
     `,
@@ -427,7 +400,7 @@ export async function getNewSessionMessages(
         file_path as file,
         is_sidechain,
         agent_id
-      FROM mv_jsonl_messages
+      FROM jsonl_messages
       WHERE session_id = {sessionId:String}
         AND msg_timestamp > {after:String}
       ORDER BY msg_timestamp ASC
@@ -463,7 +436,7 @@ export async function getSessionFiles(
   const result = await clickhouse.query({
     query: `
       SELECT file_path, raw
-      FROM mv_jsonl_messages
+      FROM jsonl_messages
       WHERE file_path LIKE {pattern:String}
       ORDER BY file_path, msg_timestamp ASC
     `,

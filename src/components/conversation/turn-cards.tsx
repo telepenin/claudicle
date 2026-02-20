@@ -186,6 +186,7 @@ export function AssistantTurnCard({
               SubagentConversation={SubagentConversation}
               taskTimeline={taskTimeline}
               cwd={cwd}
+              model={turn.model}
             />
           ) : (
             <p className="text-sm text-muted-foreground italic">

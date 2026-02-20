@@ -19,7 +19,7 @@ import {
   SELF_RENDERING_TOOLS,
 } from "./tool-renderers";
 import type { ParsedContent, ToolResultInfo, TaskTimelineItem } from "@/lib/turn-grouping";
-import { countLines, extractToolResultText } from "@/lib/turn-grouping";
+import { countLines, extractToolResultText, shortenModel } from "@/lib/turn-grouping";
 import type { LogMessage } from "@/lib/types";
 
 const TASK_TOOL_NAMES = new Set([
@@ -62,12 +62,14 @@ export function ToolUseBlock({
   subagentMessages,
   SubagentConversation,
   cwd,
+  model,
 }: {
   block: ParsedContent;
   resultInfo?: ToolResultInfo;
   subagentMessages?: LogMessage[];
   SubagentConversation?: React.ComponentType<{ messages: LogMessage[]; cwd?: string }>;
   cwd?: string;
+  model?: string;
 }) {
   const name = block.name ?? "tool";
   const input = (block.input as Record<string, unknown>) ?? {};
@@ -77,18 +79,26 @@ export function ToolUseBlock({
   const colors = TOOL_COLORS[name] ?? (isMcp ? MCP_TOOL_COLOR : DEFAULT_TOOL_COLOR);
   const borderClass = resultInfo?.isError ? "border-red-400" : colors.border;
   const selfRendering = SELF_RENDERING_TOOLS.has(name) || isMcp;
+  // For errored self-rendering tools, don't pass result to the custom renderer —
+  // show it using the standard error display below instead.
+  const showResultInRenderer = selfRendering && !resultInfo?.isError;
 
   return (
     <div className={`my-2 border-l-2 ${borderClass} px-3 py-1 rounded-r-md ${colors.bg}`}>
+      {model && (
+        <span className="float-right text-[10px] font-mono text-muted-foreground/60">
+          {shortenModel(model)}
+        </span>
+      )}
       {renderToolCallContent(
         name,
         input,
-        selfRendering ? resultInfo?.content : undefined,
+        showResultInRenderer ? resultInfo?.content : undefined,
         name === "Task" ? subagentMessages : undefined,
         name === "Task" ? SubagentConversation : undefined,
         cwd,
       )}
-      {resultInfo && !selfRendering && (
+      {resultInfo && !showResultInRenderer && (
         <div className="mt-1.5">
           {resultInfo.content ? (
             <>
@@ -344,6 +354,7 @@ export function ContentBlocks({
   SubagentConversation,
   taskTimeline,
   cwd,
+  model,
 }: {
   blocks: ParsedContent[];
   toolResults: Map<string, ToolResultInfo>;
@@ -352,6 +363,7 @@ export function ContentBlocks({
   SubagentConversation?: React.ComponentType<{ messages: LogMessage[]; cwd?: string }>;
   taskTimeline?: Map<string, TaskTimelineItem[]>;
   cwd?: string;
+  model?: string;
 }) {
   const { groups, grouped } = groupTaskBlocks(blocks);
 
@@ -389,6 +401,7 @@ export function ContentBlocks({
               subagentMessages={subMsgs}
               SubagentConversation={SubagentConversation}
               cwd={cwd}
+              model={model}
             />
           );
         }

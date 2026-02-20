@@ -220,14 +220,18 @@ export function parseMessage(raw: string): {
 
 export function extractToolResultText(block: ParsedContent): string {
   const content = block.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
+  let text = "";
+  if (typeof content === "string") {
+    text = content;
+  } else if (Array.isArray(content)) {
+    text = content
       .map((c) => (typeof c === "string" ? c : c.text ?? ""))
       .join("\n");
+  } else if (block.output) {
+    text = block.output;
   }
-  if (block.output) return block.output;
-  return "";
+  // Strip <tool_use_error>...</tool_use_error> wrapper if present
+  return text.replace(/<\/?tool_use_error>/g, "").trim();
 }
 
 // ─── Message reordering ──────────────────────────────────────────────────
