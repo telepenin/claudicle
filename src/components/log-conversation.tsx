@@ -33,6 +33,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   const [copied, setCopied] = useState(false);
   const [copiedResume, setCopiedResume] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const cursorRef = useRef<string>("");
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -66,19 +67,26 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
+  // Keep cursor ref in sync with latest message timestamp
+  useEffect(() => {
+    if (data && data.messages.length > 0) {
+      cursorRef.current = data.messages[data.messages.length - 1].msg_timestamp;
+    }
+  }, [data]);
+
   // SSE live tail
   useEffect(() => {
-    if (!live || !data || data.messages.length === 0) return;
+    if (!live || !cursorRef.current) return;
 
-    const lastTs = data.messages[data.messages.length - 1].msg_timestamp;
     const es = new EventSource(
-      `/api/logs/${sessionId}/stream?after=${encodeURIComponent(lastTs)}`
+      `/api/logs/${sessionId}/stream?after=${encodeURIComponent(cursorRef.current)}`
     );
 
     es.onmessage = (event) => {
       try {
         const newMessages: LogMessage[] = JSON.parse(event.data);
         if (newMessages.length > 0) {
+          cursorRef.current = newMessages[newMessages.length - 1].msg_timestamp;
           setData((prev) => {
             if (!prev) return prev;
             return {
@@ -86,7 +94,6 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
               messages: [...prev.messages, ...newMessages],
             };
           });
-          // Auto-scroll to bottom
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
         }
       } catch {
@@ -99,7 +106,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
     };
 
     return () => es.close();
-  }, [live, sessionId, data?.messages.length]);
+  }, [live, sessionId]);
 
   const { mainMessages, subagentMap } = useMemo(() => {
     if (!data) return { mainMessages: [], subagentMap: new Map<string, LogMessage[]>() };

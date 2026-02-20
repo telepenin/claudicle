@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useReducer } from "react";
 import Link from "next/link";
 import { Activity, DollarSign, Hash, Layers, MessageSquare } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
@@ -12,14 +12,34 @@ import type { StatsResponse, LogSessionSummary } from "@/lib/types";
 
 export function DashboardContent() {
   const { filterQueryString } = useGlobalFilters();
-  const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [recentLogs, setRecentLogs] = useState<LogSessionSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  type State = {
+    stats: StatsResponse | null;
+    recentLogs: LogSessionSummary[];
+    loading: boolean;
+    error: string | null;
+  };
+  type Action =
+    | { type: "success"; stats: StatsResponse; logs: LogSessionSummary[] }
+    | { type: "error"; message: string }
+    | { type: "loading" };
 
-  const fetchStats = useCallback(() => {
-    setLoading(true);
-    setError(null);
+  const [{ stats, recentLogs, loading, error }, dispatch] = useReducer(
+    (state: State, action: Action): State => {
+      switch (action.type) {
+        case "loading":
+          return { ...state, loading: true, error: null };
+        case "success":
+          return { stats: action.stats, recentLogs: action.logs, loading: false, error: null };
+        case "error":
+          return { ...state, loading: false, error: action.message };
+      }
+    },
+    { stats: null, recentLogs: [], loading: true, error: null }
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    dispatch({ type: "loading" });
     const statsUrl = `/api/stats${filterQueryString ? `?${filterQueryString}` : ""}`;
 
     Promise.all([
@@ -33,16 +53,14 @@ export function DashboardContent() {
       }),
     ])
       .then(([statsData, logsData]) => {
-        setStats(statsData);
-        setRecentLogs(logsData.sessions ?? []);
+        if (!cancelled) dispatch({ type: "success", stats: statsData, logs: logsData.sessions ?? [] });
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [filterQueryString]);
+      .catch((e) => {
+        if (!cancelled) dispatch({ type: "error", message: e.message });
+      });
 
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+    return () => { cancelled = true; };
+  }, [filterQueryString]);
 
   if (error && !stats) {
     return (

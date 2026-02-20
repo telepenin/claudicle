@@ -52,21 +52,19 @@ function formatDuration(ms: number): string {
 }
 
 export function DashboardCharts({ data }: { data?: StatsResponse }) {
-  const [stats, setStats] = useState<StatsResponse | null>(data ?? null);
+  const [fetched, setFetched] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(!data);
 
   useEffect(() => {
-    if (data) {
-      setStats(data);
-      setLoading(false);
-      return;
-    }
+    if (data) return;
     fetch("/api/stats")
       .then((r) => r.json())
-      .then((d) => setStats(d))
+      .then((d) => setFetched(d))
       .catch((e) => console.error("Failed to fetch stats:", e))
       .finally(() => setLoading(false));
   }, [data]);
+
+  const stats = data ?? fetched;
 
   if (loading) {
     return (

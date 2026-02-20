@@ -17,5 +17,19 @@ services:
       timeout: 3s
       retries: 10
 
+  ui:
+    build: .
+    ports:
+      - "${UI_PORT:-3001}:3000"
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:?Set CLICKHOUSE_USER in .env}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in .env}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-claude_logs}
+      CLICKHOUSE_HOST: clickhouse
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   clickhouse_data:
