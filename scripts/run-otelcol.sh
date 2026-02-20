@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG="${REPO_DIR}/otelcol-config.yaml"
+CONFIG="${REPO_DIR}/configs/otelcol-config.yaml"
 
 # Load credentials from .env if present and vars not already set
 if [[ -f "${REPO_DIR}/.env" ]]; then

@@ -15,15 +15,16 @@ Design docs and implementation plans are in `docs/plans/`.
 ## Architecture
 
 ```
-Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickHouse  ──▶  Next.js App (:3000)
-~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog)  ──▶  ClickHouse
+                   ┌──OTLP HTTP──▶  OTel Collector (:4318) ──────────────────────────────┐
+Claude Code ───────┤                                                                       ├──▶  ClickHouse  ──▶  Next.js App (:3000)
+                   └──JSONL──▶  ~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog) ┘
 ```
 
 - **OTel Collector** (local install, otelcol-contrib) — receives OTLP on port 4318 + tails JSONL files, exports both to ClickHouse
 - **ClickHouse** (Docker) — canonical OTel schema: `otel_logs` (both OTel events and JSONL), `otel_metrics_*`, `otel_traces`
 - **Next.js 16 App** (Docker) — App Router, API routes query ClickHouse via `@clickhouse/client`, frontend uses Tailwind + shadcn/ui
 
-No PostgreSQL, no custom backend. ClickHouse auth via env vars (`CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD`) in `.env` — no hardcoded defaults, see `.env.example`.
+ClickHouse auth via env vars (`CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD`) in `.env` — no hardcoded defaults, see `.env.example`.
 
 ## Commands
 

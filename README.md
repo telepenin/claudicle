@@ -5,8 +5,9 @@ The chronicles of Claude. Open-source tool to collect and visualize [Claude Code
 ## Architecture
 
 ```
-Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickHouse  ──▶  Next.js App (:3000)
-~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog)  ──▶  ClickHouse
+                   ┌──OTLP HTTP──▶  OTel Collector (:4318) ──────────────────────────────┐
+Claude Code ───────┤                                                                       ├──▶  ClickHouse  ──▶  Next.js App (:3000)
+                   └──JSONL──▶  ~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog) ┘
 ```
 
 - **OTel Collector** (local install, otelcol-contrib) — receives OTLP on port 4318 + tails JSONL files, exports both to ClickHouse
@@ -20,32 +21,39 @@ Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickH
 ```bash
 git clone https://github.com/telepenin/claudicle
 cd claudicle
+cp .env.example .env   # edit credentials if needed
 docker compose up -d
 ```
 
 ### 2. Configure Claude Code
 
-Add these environment variables before starting Claude Code:
+Add the following to your `~/.claude/settings.json` to enable telemetry and set your dashboard dimensions:
 
-```bash
-export CLAUDE_CODE_ENABLE_TELEMETRY=1
-export OTEL_LOGS_EXPORTER=otlp
-export OTEL_METRICS_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export OTEL_LOG_USER_PROMPTS=1
-export OTEL_LOG_TOOL_DETAILS=1
+```json
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+    "OTEL_LOG_USER_PROMPTS": "1",
+    "OTEL_LOG_TOOL_DETAILS": "1",
+    "OTEL_RESOURCE_ATTRIBUTES": "project=my-project,developer=nikolay"
+  }
+}
 ```
 
-Add resource attributes for dashboard filtering:
+The `OTEL_RESOURCE_ATTRIBUTES` value is a comma-separated list of `key=value` pairs used as filter dimensions in the dashboard:
 
-```bash
-# Required: set project name for dashboard filtering
-export OTEL_RESOURCE_ATTRIBUTES="project=my-project"
+| Key | Description | Example |
+|-----|-------------|---------|
+| `project` | Project name | `claudicle` |
+| `environment` | Environment | `dev`, `ci` |
+| `team` | Team name | `platform`, `frontend` |
+| `developer` | Developer name | `nikolay` |
 
-# Optional: add more dimensions (defaults: environment=local, team=default, developer=default)
-export OTEL_RESOURCE_ATTRIBUTES="project=my-project,environment=local,team=platform,developer=nikolay"
-```
+Once saved, just run `claude` — no wrapper script needed.
 
 ### 3. (Optional) Enable full session logs
 
@@ -79,7 +87,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Route | Description |
 |-------|-------------|
-| `/` | Dashboard with recent sessions, cost and token charts |
+| `/` | Dashboard with cost/token charts and dimension filters |
 | `/sessions` | Searchable session list with stats |
 | `/sessions/[id]` | Session event timeline with typed event cards |
 
@@ -95,8 +103,8 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Verify the Pipeline
 
 ```bash
-docker compose exec clickhouse clickhouse-client \
-  -q "SELECT count() FROM claude_logs.otel_events"
+curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
+  --data-binary 'SELECT count() FROM otel_logs'
 ```
 
 ## License

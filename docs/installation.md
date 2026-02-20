@@ -2,9 +2,8 @@
 
 ## Prerequisites
 
-- **Docker** and **Docker Compose** (for ClickHouse)
-- **Node.js** 18+ and **npm** (for the Next.js app)
-- **otelcol-contrib** (OpenTelemetry Collector Contrib distribution)
+- **Docker** and **Docker Compose** (for ClickHouse + Next.js app)
+- **otelcol-contrib** (OpenTelemetry Collector Contrib distribution) — only needed for JSONL session logs
 
 ### Installing otelcol-contrib
 
@@ -31,105 +30,109 @@ git clone https://github.com/telepenin/claudicle.git
 cd claudicle
 ```
 
-### 2. Start ClickHouse
+### 2. Configure credentials
+
+```bash
+cp .env.example .env
+# Edit .env to set CLICKHOUSE_USER and CLICKHOUSE_PASSWORD
+```
+
+All components (Docker Compose, OTel Collector, Next.js app) read from this file. No hardcoded defaults — if `.env` is missing, services will fail with a clear error.
+
+### 3. Start ClickHouse + Next.js app
 
 ```bash
 docker compose up -d
 ```
 
-This starts ClickHouse with default credentials (`claude`/`claude`) and creates the `claude_logs` database with materialized views for JSONL session data.
-
 Verify it's running:
 
 ```bash
-docker compose exec clickhouse clickhouse-client \
-  --user claude --password claude \
-  -q "SELECT 1"
+curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
+  --data-binary 'SELECT 1'
 ```
 
-### 3. Start the OTel Collector
+### 4. Configure Claude Code
+
+Add the following to your `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+    "OTEL_LOG_USER_PROMPTS": "1",
+    "OTEL_LOG_TOOL_DETAILS": "1",
+    "OTEL_RESOURCE_ATTRIBUTES": "project=my-project,developer=nikolay"
+  }
+}
+```
+
+`OTEL_RESOURCE_ATTRIBUTES` is a comma-separated list of `key=value` pairs that appear as filter dropdowns in the dashboard. Supported keys:
+
+| Key | Description | Example |
+|-----|-------------|---------|
+| `project` | Project name | `claudicle` |
+| `environment` | Environment | `dev`, `ci`, `codespace` |
+| `team` | Team name | `platform`, `frontend` |
+| `developer` | Developer name | `nikolay` |
+
+Only dimensions with data in ClickHouse are shown. Once the settings file is saved, run `claude` normally — no wrapper script needed.
+
+### 5. (Optional) Start the OTel Collector
+
+The OTel Collector enables full conversation transcripts (JSONL session logs). Without it, you still get OTel events and metrics.
 
 ```bash
 ./scripts/run-otelcol.sh
 ```
 
 The collector:
-- Listens on **port 4318** (HTTP) and **4317** (gRPC) for OTLP data from Claude Code
+- Listens on **port 4318** (HTTP) for OTLP data from Claude Code
 - Tails `~/.claude/projects/**/*.jsonl` for session log files
 - Exports everything to ClickHouse
 
 The collector must run on the same machine as Claude Code (it reads local JSONL files).
 
-### 4. Configure Claude Code
+### 6. Browse sessions
 
-Enable OpenTelemetry export in Claude Code by adding to your Claude Code settings (`~/.claude/settings.json`):
+Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
-```json
-{
-  "env": {
-    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"
-  }
-}
-```
-
-Or export the environment variable before running Claude Code:
-
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-```
-
-### 5. Set Resource Attributes
-
-Add custom resource attributes so the dashboard can filter by project, environment, team, and developer:
-
-```bash
-export OTEL_RESOURCE_ATTRIBUTES="project=my-project,environment=local,team=platform,developer=nikolay"
-```
-
-| Attribute | Key | Required | Default | Example |
-|-----------|-----|----------|---------|---------|
-| Project | `project` | Yes (must set) | — | `claudicle` |
-| Environment | `environment` | No | `local` | `local`, `ci`, `codespace` |
-| Team | `team` | No | `default` | `platform`, `frontend` |
-| Developer | `developer` | No | `default` | `nikolay` |
-
-These values appear as filter dropdowns in the dashboard. Only dimensions with data in ClickHouse are shown.
-
-### 6. Start the Next.js app
+For local development of the Next.js app (outside Docker):
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
-
 ## Configuration
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLICKHOUSE_USER` | `claude` | ClickHouse username |
-| `CLICKHOUSE_PASSWORD` | `claude` | ClickHouse password |
-| `CLICKHOUSE_DB` | `claude_logs` | ClickHouse database name |
-| `CLICKHOUSE_HOST` | `localhost` | ClickHouse host (used by the Next.js app) |
+| Variable | Description |
+|----------|-------------|
+| `CLICKHOUSE_USER` | ClickHouse username |
+| `CLICKHOUSE_PASSWORD` | ClickHouse password |
+| `CLICKHOUSE_DB` | ClickHouse database name (default in `.env.example`: `claude_logs`) |
+| `CLICKHOUSE_HOST` | ClickHouse host (used by the Next.js app) |
 
-### Credentials
+### Files
 
-All components read credentials from a single `.env` file in the project root. Copy the example and edit as needed:
-
-```bash
-cp .env.example .env
-```
-
-Docker Compose, the OTel Collector script, and the Next.js app all read from this file. No hardcoded defaults — if `.env` is missing, services will fail with a clear error.
+| File | Purpose |
+|------|---------|
+| `.env` | ClickHouse credentials (used by all components) |
+| `~/.claude/settings.json` | Claude Code global settings — OTel env vars go here |
+| `configs/otelcol-config.yaml` | OTel Collector pipeline config |
 
 ## Data Pipeline
 
 ```
-Claude Code  ──OTLP HTTP──▶  OTel Collector (:4318)  ──▶  ClickHouse (:9000)  ──▶  Next.js App (:3000)
-~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog)  ──▶  ClickHouse
+                   ┌──OTLP HTTP──▶  OTel Collector (:4318) ──────────────────────────────┐
+Claude Code ───────┤                                                                       ├──▶  ClickHouse  ──▶  Next.js App (:3000)
+                   └──JSONL──▶  ~/.claude/projects/*.jsonl  ──▶  OTel Collector (filelog) ┘
 ```
 
 Two data sources flow into ClickHouse:
@@ -145,14 +148,12 @@ After starting all components and running a Claude Code session:
 
 ```bash
 # Check OTel events
-docker compose exec clickhouse clickhouse-client \
-  --user claude --password claude \
-  -q "SELECT count() FROM claude_logs.otel_logs WHERE ServiceName = 'claude-code'"
+curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
+  --data-binary "SELECT count() FROM otel_logs WHERE ServiceName = 'claude-code'"
 
 # Check JSONL session logs
-docker compose exec clickhouse clickhouse-client \
-  --user claude --password claude \
-  -q "SELECT count() FROM claude_logs.mv_jsonl_messages"
+curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
+  --data-binary 'SELECT count() FROM mv_jsonl_messages'
 ```
 
 ## Troubleshooting
@@ -161,3 +162,4 @@ docker compose exec clickhouse clickhouse-client \
 - **ClickHouse connection refused**: Verify Docker is running with `docker compose ps`.
 - **No data appearing**: Check OTel Collector logs for errors. Ensure `OTEL_EXPORTER_OTLP_ENDPOINT` is set correctly in Claude Code.
 - **JSONL logs not ingested**: The filelog receiver tails `~/.claude/projects/**/*.jsonl`. Verify files exist at that path and the collector has read permissions.
+- **Dashboard filters not showing**: Dimension dropdowns only appear when data with those resource attributes exists. Make sure you launched Claude with `CLAUDE_*` env vars via `scripts/run-claude.sh`.

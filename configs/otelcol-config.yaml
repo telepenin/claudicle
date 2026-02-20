@@ -6,10 +6,6 @@ receivers:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
-        include_metadata: true
-      grpc:
-        endpoint: 0.0.0.0:4317
-        include_metadata: true
 
   filelog/sessions:
     include:
@@ -47,21 +43,6 @@ processors:
     check_interval: 1s
     limit_mib: 1024
     spike_limit_mib: 256
-
-  resource/dimensions:
-    attributes:
-      - key: project
-        from_context: metadata.x-claude-project
-        action: upsert
-      - key: environment
-        from_context: metadata.x-claude-environment
-        action: upsert
-      - key: team
-        from_context: metadata.x-claude-team
-        action: upsert
-      - key: developer
-        from_context: metadata.x-claude-developer
-        action: upsert
 
   resource/sessions:
     attributes:
@@ -103,7 +84,7 @@ service:
   pipelines:
     logs/otel:
       receivers: [otlp]
-      processors: [memory_limiter, resource/dimensions, batch]
+      processors: [memory_limiter, batch]
       exporters: [clickhouse]
     logs/sessions:
       receivers: [filelog/sessions]
@@ -111,9 +92,9 @@ service:
       exporters: [clickhouse]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, resource/dimensions, batch]
+      processors: [memory_limiter, batch]
       exporters: [clickhouse]
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource/dimensions, batch]
+      processors: [memory_limiter, batch]
       exporters: [clickhouse]
