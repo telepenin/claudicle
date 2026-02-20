@@ -3,28 +3,18 @@
 [![CI](https://github.com/telepenin/claudicle/actions/workflows/ci.yml/badge.svg)](https://github.com/telepenin/claudicle/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/telepenin/claudicle/graph/badge.svg)](https://codecov.io/gh/telepenin/claudicle)
 
-![Claudicle dashboard](img/claudicle.png)
+<img src="img/claudicle.png" alt="Claudicle" width="256" />
 
 The chronicles of Claude. Open-source tool to collect and visualize [Claude Code](https://claude.ai/code) session telemetry. Run a Docker Compose stack, point Claude Code's built-in OpenTelemetry export at it, and browse your sessions in a web UI.
 
 ## Features
 
-- **Dashboard** — summary cards (sessions, events, cost, tokens), cost and token trends over 30 days, events by type, top models and tools
-- **Global filters** — filter by project, environment, team, and developer across all pages with cross-dimension filtering
-- **Session browser** — searchable session list with message counts, type breakdown (user/assistant/tool/subagent/error), date range filtering, pagination
-- **Session detail view** — rendered conversation with turn-based grouping, thinking blocks, and rich tool visualizations:
-  - **Write/Edit** — file path, content preview, diff view with additions/deletions
-  - **Read** — file path with line-numbered code viewer
-  - **Bash** — command with shell prompt styling and output
-  - **Grep** — results grouped by file with line numbers and match highlighting
-  - **WebSearch/WebFetch** — query/URL with expandable results
-  - **Task tools** — grouped task operations with status
-  - **MCP tools** — generic renderer for any MCP tool call
-  - **Subagent conversations** — recursively rendered nested sessions
-- **Live tail** — SSE-powered real-time streaming of new messages for active sessions with auto-scroll
-- **Raw JSONL view** — toggle to see raw session data
-- **Session export** — download full session as plain JSONL or as a portable `.tar.gz` archive (includes main session + all subagent transcripts) that can be extracted directly into `~/.claude/projects/` to restore the session on any machine
-- **Docker Compose deployment** — ClickHouse + Next.js app, single `docker compose up`
+- **Telemetry collection** — captures Claude Code OTel events via OTLP: API costs, token usage, tool calls, model usage, errors, and more
+- **Session log collection** — tails `~/.claude/projects/*.jsonl` to ingest full conversation transcripts including Claude's responses, thinking blocks, and tool outputs
+- **Dashboard** — cost and token trends, top models and tools (with min/avg/max duration and success rate), events by type, filterable by project/environment/team/developer
+- **Session browser** — searchable list with message counts, subagent and error indicators, date range filtering, pagination
+- **Session detail view** — rendered conversation with rich tool visualizations (Write/Edit diffs, Read with line numbers, Bash output, Grep results, WebSearch/Fetch, MCP tools, nested subagent sessions), live tail for active sessions, raw JSONL toggle
+- **Session export** — portable `.tar.gz` archive preserving the `~/.claude/projects/` structure, one-liner to restore and resume on any machine
 
 ## Architecture
 
