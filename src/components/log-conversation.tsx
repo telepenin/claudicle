@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Download, Copy, Check } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +31,8 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [live, setLive] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -150,9 +152,9 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
             Download .tar.gz
           </a>
           <button
-            title={`curl ${typeof window !== "undefined" ? window.location.origin : ""}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`}
+            title={`curl -f ${typeof window !== "undefined" ? window.location.origin : ""}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`}
             onClick={() => {
-              const cmd = `curl ${window.location.origin}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`;
+              const cmd = `curl -f ${window.location.origin}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`;
               navigator.clipboard.writeText(cmd);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
