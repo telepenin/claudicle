@@ -176,7 +176,7 @@ export async function getStats(
           ${filterClause}
         GROUP BY tool
         ORDER BY count DESC
-        LIMIT 10
+        LIMIT 20
       `,
       query_params: filterParams,
       format: "JSONEachRow",

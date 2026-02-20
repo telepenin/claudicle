@@ -16,6 +16,34 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { StatsResponse } from "@/lib/types";
+import {
+  FileText, Pencil, BookOpen, Terminal, FolderSearch, Search,
+  Globe, Code, Wrench, Plug, CirclePlus, RefreshCw, ListTodo,
+  MessageCircleQuestion, Map as MapIcon, LogOut,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ToolBadge, TOOL_COLORS, DEFAULT_TOOL_COLOR, MCP_TOOL_COLOR } from "@/components/conversation/tool-renderers";
+
+const TOOL_ICONS: Record<string, LucideIcon> = {
+  Write: FileText, Edit: Pencil, Read: BookOpen, Bash: Terminal,
+  Glob: FolderSearch, Grep: Search, WebSearch: Search, WebFetch: Globe,
+  Task: Code, TaskCreate: CirclePlus, TaskUpdate: RefreshCw,
+  TaskList: ListTodo, TaskGet: ListTodo, TodoWrite: ListTodo,
+  AskUserQuestion: MessageCircleQuestion,
+  EnterPlanMode: MapIcon, ExitPlanMode: LogOut,
+  Skill: Plug,
+};
+
+function ToolCell({ tool }: { tool: string }) {
+  const isMcp = tool === "mcp_tool" || tool.startsWith("mcp__");
+  const colors = isMcp ? MCP_TOOL_COLOR : (TOOL_COLORS[tool] ?? DEFAULT_TOOL_COLOR);
+  const icon = isMcp ? Plug : (TOOL_ICONS[tool] ?? Wrench);
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 border ${colors.border} ${colors.bg}`}>
+      <ToolBadge label={tool} icon={icon} />
+    </span>
+  );
+}
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -227,25 +255,29 @@ export function DashboardCharts({ data }: { data?: StatsResponse }) {
               </thead>
               <tbody>
                 {stats.top_tools.map((t) => {
-                  const hasDuration = Number(t.avg_duration_ms) > 0;
+                  const avgMs = Number(t.avg_duration_ms) || 0;
+                  const minMs = Number(t.min_duration_ms) || 0;
+                  const maxMs = Number(t.max_duration_ms) || 0;
+                  const hasDuration = avgMs > 0;
                   const successPct = Number(t.success_pct);
+                  const hasSuccess = !isNaN(successPct);
                   return (
                     <tr key={t.tool} className="border-b last:border-0">
-                      <td className="py-2 font-mono text-xs">{t.tool}</td>
+                      <td className="py-2"><ToolCell tool={t.tool} /></td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
                         {Number(t.count).toLocaleString()}
                       </td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {hasDuration ? formatDuration(Number(t.min_duration_ms)) : "—"}
+                        {hasDuration ? formatDuration(minMs) : "—"}
                       </td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {hasDuration ? formatDuration(Number(t.avg_duration_ms)) : "—"}
+                        {hasDuration ? formatDuration(avgMs) : "—"}
                       </td>
                       <td className="py-2 text-right tabular-nums text-muted-foreground">
-                        {hasDuration ? formatDuration(Number(t.max_duration_ms)) : "—"}
+                        {hasDuration ? formatDuration(maxMs) : "—"}
                       </td>
-                      <td className={`py-2 text-right tabular-nums ${successPct === 100 ? "text-muted-foreground" : successPct >= 90 ? "text-yellow-500" : "text-red-500"}`}>
-                        {successPct.toFixed(0)}%
+                      <td className={`py-2 text-right tabular-nums ${!hasSuccess ? "text-muted-foreground" : successPct === 100 ? "text-muted-foreground" : successPct >= 90 ? "text-yellow-500" : "text-red-500"}`}>
+                        {hasSuccess ? `${successPct.toFixed(0)}%` : "—"}
                       </td>
                     </tr>
                   );
