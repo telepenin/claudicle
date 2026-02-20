@@ -23,6 +23,7 @@ import {
   Ellipsis,
   GitBranch,
   AlertCircle,
+  Plug,
 } from "lucide-react";
 import { formatRelativeTime, extractProject } from "@/lib/format";
 import { useGlobalFilters } from "@/lib/use-global-filters";
@@ -90,13 +91,14 @@ export function LogList() {
               <TableHead className="text-right">Messages</TableHead>
               <TableHead className="text-right">Breakdown</TableHead>
               <TableHead className="text-right">Started</TableHead>
+              <TableHead className="text-right">Last active</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -106,7 +108,7 @@ export function LogList() {
             ) : !data || data.sessions.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="py-8 text-center text-muted-foreground"
                 >
                   No logs found.
@@ -137,6 +139,7 @@ export function LogList() {
                         <Badge
                           variant="secondary"
                           className="gap-1 text-xs font-normal"
+                          title="User messages"
                         >
                           <MessageSquare className="h-3 w-3" />
                           {Number(s.user_count)}
@@ -146,6 +149,7 @@ export function LogList() {
                         <Badge
                           variant="secondary"
                           className="gap-1 text-xs font-normal"
+                          title="Assistant messages"
                         >
                           <Bot className="h-3 w-3" />
                           {Number(s.assistant_count)}
@@ -155,6 +159,7 @@ export function LogList() {
                         <Badge
                           variant="secondary"
                           className="gap-1 text-xs font-normal"
+                          title="Other messages (progress, system, etc.)"
                         >
                           <Ellipsis className="h-3 w-3" />
                           {Number(s.tool_count)}
@@ -164,15 +169,27 @@ export function LogList() {
                         <Badge
                           variant="secondary"
                           className="gap-1 text-xs font-normal text-indigo-600"
+                          title="Subagents spawned"
                         >
                           <GitBranch className="h-3 w-3" />
                           {Number(s.subagent_count)}
+                        </Badge>
+                      )}
+                      {Number(s.mcp_tool_count) > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 text-xs font-normal text-emerald-600"
+                          title="MCP tool calls"
+                        >
+                          <Plug className="h-3 w-3" />
+                          {Number(s.mcp_tool_count)}
                         </Badge>
                       )}
                       {Number(s.error_count) > 0 && (
                         <Badge
                           variant="secondary"
                           className="gap-1 text-xs font-normal text-red-600"
+                          title="Tool errors"
                         >
                           <AlertCircle className="h-3 w-3" />
                           {Number(s.error_count)}
@@ -182,6 +199,9 @@ export function LogList() {
                   </TableCell>
                   <TableCell className="text-right text-sm text-muted-foreground">
                     {formatRelativeTime(s.first_timestamp)}
+                  </TableCell>
+                  <TableCell className="text-right text-sm text-muted-foreground">
+                    {formatRelativeTime(s.last_timestamp)}
                   </TableCell>
                 </TableRow>
               ))

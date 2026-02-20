@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Header } from "@/components/header";
 import { FilterBar } from "@/components/filter-bar";
+import { ScrollToTop } from "@/components/scroll-to-top";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({
           <FilterBar />
         </Suspense>
         {children}
+        <ScrollToTop />
       </body>
     </html>
   );

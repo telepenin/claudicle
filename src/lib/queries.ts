@@ -287,7 +287,7 @@ export async function getLogSessionList(params: {
             anyMerge(project_path) AS project_path
           FROM mv_jsonl_sessions
           GROUP BY session_id
-          ORDER BY first_timestamp DESC
+          ORDER BY last_timestamp DESC
           LIMIT {limit:UInt32}
           OFFSET {offset:UInt32}
         `,
@@ -299,10 +299,11 @@ export async function getLogSessionList(params: {
           SELECT
             session_id,
             uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
-            countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count
+            countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count,
+            countIf(msg_type = 'assistant' AND position(raw, '"name":"mcp__') > 0) as mcp_tool_count
           FROM mv_jsonl_messages
           GROUP BY session_id
-          HAVING subagent_count > 0 OR error_count > 0
+          HAVING subagent_count > 0 OR error_count > 0 OR mcp_tool_count > 0
         `,
         format: "JSONEachRow",
       }),
@@ -311,12 +312,13 @@ export async function getLogSessionList(params: {
     const countRows = await countResult.json<{ total: string }>();
     const total = Number(countRows[0]?.total ?? 0);
     const sessions = await result.json<LogSessionSummary>();
-    const extraRows = await subagentResult.json<{ session_id: string; subagent_count: string; error_count: string }>();
-    const extraMap = new Map(extraRows.map((r) => [r.session_id, { subagent_count: Number(r.subagent_count), error_count: Number(r.error_count) }]));
+    const extraRows = await subagentResult.json<{ session_id: string; subagent_count: string; error_count: string; mcp_tool_count: string }>();
+    const extraMap = new Map(extraRows.map((r) => [r.session_id, { subagent_count: Number(r.subagent_count), error_count: Number(r.error_count), mcp_tool_count: Number(r.mcp_tool_count) }]));
     for (const s of sessions) {
       const extra = extraMap.get(s.session_id);
       s.subagent_count = extra?.subagent_count ?? 0;
       s.error_count = extra?.error_count ?? 0;
+      s.mcp_tool_count = extra?.mcp_tool_count ?? 0;
     }
     return { sessions, total, page, limit };
   }
@@ -363,11 +365,12 @@ export async function getLogSessionList(params: {
         countIf(msg_type NOT IN ('user', 'assistant')) as tool_count,
         any(file_path) as project_path,
         uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
-        countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count
+        countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count,
+        countIf(msg_type = 'assistant' AND position(raw, '"name":"mcp__') > 0) as mcp_tool_count
       FROM mv_jsonl_messages
       ${whereClause}
       GROUP BY session_id
-      ORDER BY first_timestamp DESC
+      ORDER BY last_timestamp DESC
       LIMIT {limit:UInt32}
       OFFSET {offset:UInt32}
     `,
@@ -405,6 +408,32 @@ export async function getLogConversation(
   const projectPath = messages[0]?.file ?? "";
 
   return { session_id: sessionId, messages, project_path: projectPath };
+}
+
+export async function getNewSessionMessages(
+  sessionId: string,
+  after: string
+): Promise<LogMessage[]> {
+  const result = await clickhouse.query({
+    query: `
+      SELECT
+        session_id,
+        msg_type,
+        msg_timestamp,
+        raw,
+        file_path as file,
+        is_sidechain,
+        agent_id
+      FROM mv_jsonl_messages
+      WHERE session_id = {sessionId:String}
+        AND msg_timestamp > {after:String}
+      ORDER BY msg_timestamp ASC
+    `,
+    query_params: { sessionId, after },
+    format: "JSONEachRow",
+  });
+
+  return result.json<LogMessage>();
 }
 
 /**

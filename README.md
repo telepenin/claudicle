@@ -2,6 +2,25 @@
 
 The chronicles of Claude. Open-source tool to collect and visualize [Claude Code](https://claude.ai/code) session telemetry. Run a Docker Compose stack, point Claude Code's built-in OpenTelemetry export at it, and browse your sessions in a web UI.
 
+## Features
+
+- **Dashboard** — summary cards (sessions, events, cost, tokens), cost and token trends over 30 days, events by type, top models and tools
+- **Global filters** — filter by project, environment, team, and developer across all pages with cross-dimension filtering
+- **Session browser** — searchable session list with message counts, type breakdown (user/assistant/tool/subagent/error), date range filtering, pagination
+- **Session detail view** — rendered conversation with turn-based grouping, thinking blocks, and rich tool visualizations:
+  - **Write/Edit** — file path, content preview, diff view with additions/deletions
+  - **Read** — file path with line-numbered code viewer
+  - **Bash** — command with shell prompt styling and output
+  - **Grep** — results grouped by file with line numbers and match highlighting
+  - **WebSearch/WebFetch** — query/URL with expandable results
+  - **Task tools** — grouped task operations with status
+  - **MCP tools** — generic renderer for any MCP tool call
+  - **Subagent conversations** — recursively rendered nested sessions
+- **Live tail** — SSE-powered real-time streaming of new messages for active sessions with auto-scroll
+- **Raw JSONL view** — toggle to see raw session data
+- **Session export** — download full session as plain JSONL or as a portable `.tar.gz` archive (includes main session + all subagent transcripts) that can be extracted directly into `~/.claude/projects/` to restore the session on any machine
+- **Docker Compose deployment** — ClickHouse + Next.js app, single `docker compose up`
+
 ## Architecture
 
 ```
@@ -88,8 +107,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | Route | Description |
 |-------|-------------|
 | `/` | Dashboard with cost/token charts and dimension filters |
-| `/sessions` | Searchable session list with stats |
-| `/sessions/[id]` | Session event timeline with typed event cards |
+| `/logs` | Searchable session list with message counts and breakdown |
+| `/logs/[id]` | Rendered conversation with subagent support, live tail, raw JSONL toggle, and archive download |
+| `GET /api/logs/[id]/archive` | Download session as `.tar.gz` (main JSONL + subagent files) |
 
 ## Tech Stack
 
@@ -99,6 +119,11 @@ Open [http://localhost:3000](http://localhost:3000).
 - **Tailwind CSS** + **shadcn/ui** — UI components
 - **recharts** — dashboard charts
 - **@clickhouse/client** — ClickHouse queries from Node.js
+
+## Planned
+
+- **JSONL redaction** (optional) — pre-process JSONL session logs to strip or truncate sensitive data (file contents, bash outputs, API keys) before ingestion into ClickHouse. Approaches under consideration: file watcher script that writes sanitized copies to a mirror directory, or a custom OTel Collector processor plugin.
+- **[OpenClaw](https://github.com/openclaw/openclaw) support** — collect and visualize telemetry from OpenClaw AI assistant sessions alongside Claude Code data.
 
 ## Verify the Pipeline
 
