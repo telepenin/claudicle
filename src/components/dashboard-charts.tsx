@@ -224,7 +224,9 @@ export function DashboardCharts({ data }: { data?: StatsResponse }) {
                   <div className="flex gap-3 text-muted-foreground">
                     <span>{Number(t.count).toLocaleString()}x</span>
                     {Number(t.avg_duration_ms) > 0 && (
-                      <span>avg {formatDuration(Number(t.avg_duration_ms))}</span>
+                      <span title={`min ${formatDuration(Number(t.min_duration_ms))} / max ${formatDuration(Number(t.max_duration_ms))}`}>
+                        avg {formatDuration(Number(t.avg_duration_ms))}
+                      </span>
                     )}
                   </div>
                 </div>

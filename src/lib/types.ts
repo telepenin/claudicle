@@ -19,6 +19,8 @@ export interface TopTool {
   tool: string;
   count: number;
   avg_duration_ms: number;
+  min_duration_ms: number;
+  max_duration_ms: number;
 }
 
 export interface EventsByType {
