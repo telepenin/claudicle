@@ -214,24 +214,44 @@ export function DashboardCharts({ data }: { data?: StatsResponse }) {
             <h3 className="mb-4 text-sm font-medium text-muted-foreground">
               Top Tools
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {stats.top_tools.map((t) => (
-                <div
-                  key={t.tool}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                >
-                  <span className="font-mono text-xs">{t.tool}</span>
-                  <div className="flex gap-3 text-muted-foreground">
-                    <span>{Number(t.count).toLocaleString()}x</span>
-                    {Number(t.avg_duration_ms) > 0 && (
-                      <span title={`min ${formatDuration(Number(t.min_duration_ms))} / max ${formatDuration(Number(t.max_duration_ms))}`}>
-                        avg {formatDuration(Number(t.avg_duration_ms))}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-xs text-muted-foreground">
+                  <th className="pb-2 text-left font-medium">Tool</th>
+                  <th className="pb-2 text-right font-medium">Calls</th>
+                  <th className="pb-2 text-right font-medium">Min</th>
+                  <th className="pb-2 text-right font-medium">Avg</th>
+                  <th className="pb-2 text-right font-medium">Max</th>
+                  <th className="pb-2 text-right font-medium">Success</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.top_tools.map((t) => {
+                  const hasDuration = Number(t.avg_duration_ms) > 0;
+                  const successPct = Number(t.success_pct);
+                  return (
+                    <tr key={t.tool} className="border-b last:border-0">
+                      <td className="py-2 font-mono text-xs">{t.tool}</td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {Number(t.count).toLocaleString()}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {hasDuration ? formatDuration(Number(t.min_duration_ms)) : "—"}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {hasDuration ? formatDuration(Number(t.avg_duration_ms)) : "—"}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {hasDuration ? formatDuration(Number(t.max_duration_ms)) : "—"}
+                      </td>
+                      <td className={`py-2 text-right tabular-nums ${successPct === 100 ? "text-muted-foreground" : successPct >= 90 ? "text-yellow-500" : "text-red-500"}`}>
+                        {successPct.toFixed(0)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       )}

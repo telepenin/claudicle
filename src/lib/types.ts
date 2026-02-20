@@ -21,6 +21,7 @@ export interface TopTool {
   avg_duration_ms: number;
   min_duration_ms: number;
   max_duration_ms: number;
+  success_pct: number;
 }
 
 export interface EventsByType {

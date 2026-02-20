@@ -167,7 +167,8 @@ export async function getStats(
           count() as count,
           avg(toFloat64OrZero(LogAttributes['duration_ms'])) as avg_duration_ms,
           min(toFloat64OrZero(LogAttributes['duration_ms'])) as min_duration_ms,
-          max(toFloat64OrZero(LogAttributes['duration_ms'])) as max_duration_ms
+          max(toFloat64OrZero(LogAttributes['duration_ms'])) as max_duration_ms,
+          countIf(LogAttributes['success'] = 'true') / count() * 100 as success_pct
         FROM otel_logs
         WHERE ServiceName = 'claude-code'
           AND LogAttributes['event.name'] = 'tool_result'
