@@ -78,7 +78,7 @@ Run the OTel Collector locally (`./scripts/run-otelcol.sh`) to enable JSONL log 
 
 - Session analysis reports — per-session health dashboards with error timelines, tool success rates, and actionable insights
 - Cross-session A/B testing — compare metrics across skill versions, CLAUDE.md configs, and MCP setups
-- Self-improving skills — auto-generate improvement recommendations from session analysis
+- Self-improving skills — analyze session history to auto-improve Claude Code skills (superpowers): detect failure patterns (over-tasked subagents, skill-triggered errors, MCP misfires), generate targeted SKILL.md edits, and A/B test skill versions across sessions to measure impact
 - JSONL redaction — strip sensitive data before ingestion
 - [OpenClaw](https://github.com/openclaw/openclaw) support
 
