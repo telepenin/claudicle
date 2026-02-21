@@ -12,9 +12,18 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "claude-code",
+    "telemetry",
+    "opentelemetry",
+    "clickhouse",
+    "session-viewer",
+    "developer-tools",
+    "ai-tools",
+    "observability"
+  ],
+  "author": "Nikolay Telepenin",
+  "license": "MIT",
   "dependencies": {
     "@clickhouse/client": "^1.17.0",
     "@tailwindcss/typography": "^0.5.19",
