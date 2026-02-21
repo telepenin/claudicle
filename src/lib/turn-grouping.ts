@@ -64,6 +64,14 @@ export type Turn =
       text: string;
     }
   | {
+      kind: "local_command";
+      message: LogMessage;
+      command: string;
+      stdout: string;
+      stderr: string;
+      timestamp: string;
+    }
+  | {
       kind: "noise";
       message: LogMessage;
     };
@@ -97,6 +105,33 @@ export function extractCwd(messages: LogMessage[]): string {
     }
   }
   return "";
+}
+
+// ─── Tag extraction ──────────────────────────────────────────────────────
+
+/** Extract content between `<tag>...</tag>`, or null if not present. */
+export function extractTag(text: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}>(.*?)</${tag}>`, "s");
+  const m = text.match(re);
+  return m ? m[1] : null;
+}
+
+/** Check if a user message text contains local command tags. */
+function isLocalCommandText(text: string): boolean {
+  return (
+    text.includes("<bash-input>") ||
+    text.includes("<command-name>")
+  );
+}
+
+/** Check if a user message text is a local command caveat (meta noise). */
+function isLocalCommandCaveat(text: string): boolean {
+  return text.includes("<local-command-caveat>");
+}
+
+/** Check if a user message text is local command stdout/stderr output. */
+function isLocalCommandOutput(text: string): boolean {
+  return text.includes("<bash-stdout>") || text.includes("<local-command-stdout>");
 }
 
 // ─── Parsing ──────────────────────────────────────────────────────────────
@@ -359,8 +394,53 @@ export function groupIntoTurns(
         continue;
       }
 
-      // Skill-injected user message — render as collapsed banner
+      // ── Local commands & meta messages ──
       const firstText = content.find((b) => b.type === "text" || !b.type)?.text ?? "";
+
+      // Filter isMeta caveat messages (noise)
+      try {
+        const parsedRaw = JSON.parse(msg.raw);
+        if (parsedRaw.isMeta === true) {
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+
+      // Local command: bash input (<bash-input>cmd</bash-input>)
+      if (isLocalCommandText(firstText)) {
+        flushAssistant();
+        const bashCmd = extractTag(firstText, "bash-input");
+        const slashCmd = extractTag(firstText, "command-name");
+        const command = bashCmd ?? slashCmd ?? firstText;
+        turns.push({
+          kind: "local_command",
+          message: msg,
+          command,
+          stdout: "",
+          stderr: "",
+          timestamp: msg.msg_timestamp,
+        });
+        continue;
+      }
+
+      // Local command output: merge into preceding local_command turn
+      if (isLocalCommandOutput(firstText) || isLocalCommandCaveat(firstText)) {
+        const prev = turns[turns.length - 1];
+        if (prev && prev.kind === "local_command") {
+          const stdout =
+            extractTag(firstText, "bash-stdout") ??
+            extractTag(firstText, "local-command-stdout") ??
+            "";
+          const stderr = extractTag(firstText, "bash-stderr") ?? "";
+          if (stdout) prev.stdout = stdout;
+          if (stderr) prev.stderr = stderr;
+        }
+        // Either way, don't create a separate turn for output
+        continue;
+      }
+
+      // Skill-injected user message — render as collapsed banner
       if (firstText.startsWith("Base directory for this skill:")) {
         const skillMatch = firstText.match(/skills\/([^\n/]+)/);
         const skillName = skillMatch ? skillMatch[1] : "skill";

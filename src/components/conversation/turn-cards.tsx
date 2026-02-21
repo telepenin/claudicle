@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Bot,
   Wrench,
+  Terminal,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -73,6 +74,8 @@ export function SubagentConversation({ messages, cwd: parentCwd }: { messages: L
                 return <CompactSummaryBanner key={i} turn={turn} />;
               case "skill_loaded":
                 return <SkillLoadedBanner key={i} turn={turn} />;
+              case "local_command":
+                return <LocalCommandCard key={i} turn={turn} />;
               case "turn_separator":
                 return <TurnSeparator key={i} turn={turn} />;
             }
@@ -263,6 +266,72 @@ export function SkillLoadedBanner({
           <Markdown text={turn.text} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── LocalCommandCard ────────────────────────────────────────────────────
+
+export function LocalCommandCard({
+  turn,
+}: {
+  turn: Extract<Turn, { kind: "local_command" }>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const output = turn.stdout || turn.stderr;
+  const outputLines = output ? output.split("\n").length : 0;
+  const isLong = outputLines > 10;
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-2">
+        <Terminal className="h-3.5 w-3.5 text-gray-500" />
+        <span className="text-xs font-medium text-gray-500">Local</span>
+        <span className="text-xs text-muted-foreground">
+          {new Date(turn.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+      <div className="rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <pre className="overflow-auto rounded-t-lg bg-gray-900 text-gray-100 p-3 text-xs font-mono">
+          <span className="text-gray-500">$ </span>
+          {turn.command}
+        </pre>
+        {output && (
+          <div className="px-3 py-2">
+            {isLong && !expanded ? (
+              <button
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setExpanded(true)}
+              >
+                <ChevronRight className="h-3 w-3" />
+                <span>{outputLines} lines of output</span>
+              </button>
+            ) : isLong && expanded ? (
+              <>
+                <button
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-1"
+                  onClick={() => setExpanded(false)}
+                >
+                  <ChevronDown className="h-3 w-3" />
+                  <span>Collapse</span>
+                </button>
+                <pre className="overflow-auto text-xs font-mono text-muted-foreground whitespace-pre-wrap">
+                  {output}
+                </pre>
+              </>
+            ) : (
+              <pre className="overflow-auto text-xs font-mono text-muted-foreground whitespace-pre-wrap">
+                {output}
+              </pre>
+            )}
+            {turn.stderr && (
+              <pre className="overflow-auto text-xs font-mono text-red-600 dark:text-red-400 whitespace-pre-wrap mt-1">
+                {turn.stderr}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

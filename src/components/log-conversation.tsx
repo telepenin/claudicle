@@ -18,6 +18,7 @@ import {
   CompactSummaryBanner,
   SkillLoadedBanner,
   TurnSeparator,
+  LocalCommandCard,
 } from "./conversation/turn-cards";
 import { ConversationSummary } from "./conversation/summary";
 import { RawJsonlView } from "./conversation/raw-view";
@@ -273,6 +274,8 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
                 return <CompactSummaryBanner key={i} turn={turn} />;
               case "skill_loaded":
                 return <SkillLoadedBanner key={i} turn={turn} />;
+              case "local_command":
+                return <LocalCommandCard key={i} turn={turn} />;
               case "turn_separator":
                 return <TurnSeparator key={i} turn={turn} />;
             }

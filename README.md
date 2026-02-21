@@ -53,8 +53,6 @@ Add the following to your `~/.claude/settings.json` to enable telemetry and set 
     "OTEL_METRICS_EXPORTER": "otlp",
     "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
-    "OTEL_LOG_USER_PROMPTS": "1",
-    "OTEL_LOG_TOOL_DETAILS": "1",
     "OTEL_RESOURCE_ATTRIBUTES": "project=my-project,developer=nikolay"
   }
 }
@@ -70,6 +68,45 @@ The `OTEL_RESOURCE_ATTRIBUTES` value is a comma-separated list of `key=value` pa
 | `developer` | Developer name | `nikolay` |
 
 Once saved, just run `claude` — no wrapper script needed.
+
+#### Per-project dimensions
+
+If you run multiple Claude Code instances for different projects, override `OTEL_RESOURCE_ATTRIBUTES` per project using a project-level settings file (`.claude/settings.local.json` in the project root):
+
+```json
+{
+  "env": {
+    "OTEL_RESOURCE_ATTRIBUTES": "project=my-api,team=backend,developer=nikolay"
+  }
+}
+```
+
+The shared telemetry settings (exporters, endpoint) stay in the global `~/.claude/settings.json`. Each terminal's Claude instance picks up the project-level override from its working directory. Filter by project in the Claudicle dashboard.
+
+#### Using with Claude Agent SDK
+
+When using Claude programmatically via the [Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk), pass the same environment variables through the `env` option:
+
+```typescript
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+for await (const message of query({
+  prompt: "Fix the bug in auth.py",
+  options: {
+    allowedTools: ["Read", "Edit", "Bash"],
+    env: {
+      CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+      OTEL_LOGS_EXPORTER: "otlp",
+      OTEL_METRICS_EXPORTER: "otlp",
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318",
+      OTEL_RESOURCE_ATTRIBUTES: "project=my-project,team=platform",
+    },
+  },
+})) {
+  console.log(message);
+}
+```
 
 ### 3. (Optional) Enable full session logs
 
@@ -119,6 +156,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Planned
 
+- **Session analysis reports** — per-session health dashboard showing error timeline, tool success rates, MCP reliability, skill effectiveness, subagent map with message counts and error flags, and auto-generated actionable insights (e.g. "subagent was over-tasked", "skill produced more errors than baseline")
+- **Cross-session A/B testing** — compare metrics across sessions tagged with skill versions, CLAUDE.md hash, and MCP config to measure the impact of workflow changes (e.g. "did updating the subagent skill reduce error rates?", "does Context7 MCP improve tool accuracy?")
+- **Self-improving skills/subagents** — auto-generate improvement recommendations from session analysis: suggested CLAUDE.md patches, skill parameter tuning, subagent task-sizing heuristics, and MCP tool usage patterns. Closed feedback loop: sessions → analysis → insights → config changes → better sessions
 - **JSONL redaction** (optional) — pre-process JSONL session logs to strip or truncate sensitive data (file contents, bash outputs, API keys) before ingestion into ClickHouse. Approaches under consideration: file watcher script that writes sanitized copies to a mirror directory, or a custom OTel Collector processor plugin.
 - **[OpenClaw](https://github.com/openclaw/openclaw) support** — collect and visualize telemetry from OpenClaw AI assistant sessions alongside Claude Code data.
 
