@@ -374,6 +374,7 @@ export async function getLogConversation(
         agent_id
       FROM jsonl_messages
       WHERE session_id = {sessionId:String}
+      GROUP BY session_id, msg_type, msg_timestamp, raw, file, is_sidechain, agent_id
       ORDER BY msg_timestamp ASC
     `,
     query_params: { sessionId },
@@ -403,6 +404,7 @@ export async function getNewSessionMessages(
       FROM jsonl_messages
       WHERE session_id = {sessionId:String}
         AND msg_timestamp > {after:String}
+      GROUP BY session_id, msg_type, msg_timestamp, raw, file, is_sidechain, agent_id
       ORDER BY msg_timestamp ASC
     `,
     query_params: { sessionId, after },
