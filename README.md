@@ -42,6 +42,16 @@ Add to `~/.claude/settings.json`:
 
 Open [http://localhost:3000](http://localhost:3000). For full setup details, see the [Installation Guide](docs/installation.md).
 
+### Alternative: Install via npm
+
+If you already have ClickHouse running, install just the UI:
+
+```bash
+npm install -g claudicle
+claudicle init --clickhouse-url http://your-host:8123 --user claude --password claude
+claudicle start
+```
+
 ## Features
 
 - **Dashboard** — cost and token trends, top models and tools, events by type, filterable by project/environment/team/developer

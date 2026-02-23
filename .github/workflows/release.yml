@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      # Build the Next.js standalone output
+      - run: npm ci
+      - run: npm run build
+
+      # Create UI tarball from standalone output
+      - name: Package UI tarball
+        run: |
+          mkdir -p release-staging
+          cp -r .next/standalone/. release-staging/
+          cp -r .next/static release-staging/.next/static
+          cp -r public release-staging/public
+          VERSION=${GITHUB_REF_NAME#v}
+          tar -czf claudicle-ui-v${VERSION}.tar.gz -C release-staging .
+
+      # Upload to GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            claudicle-ui-*.tar.gz
+            clickhouse/init.sql
+
+      # Publish CLI to npm
+      - name: Publish CLI to npm
+        working-directory: cli
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          npm version $VERSION --no-git-tag-version
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
