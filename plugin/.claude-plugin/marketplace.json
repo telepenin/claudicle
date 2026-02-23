@@ -1,0 +1,13 @@
+{
+  "name": "claudicle",
+  "owner": {
+    "name": "Claudicle"
+  },
+  "plugins": [
+    {
+      "name": "claudicle",
+      "description": "Configure Claude Code telemetry for Claudicle",
+      "source": "./"
+    }
+  ]
+}

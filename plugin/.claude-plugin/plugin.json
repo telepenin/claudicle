@@ -1,0 +1,11 @@
+{
+  "name": "claudicle",
+  "version": "0.1.0",
+  "description": "Configure Claude Code telemetry for Claudicle",
+  "author": {
+    "name": "Claudicle"
+  },
+  "repository": "https://github.com/nicktelepenin/claudicle",
+  "license": "MIT",
+  "keywords": ["telemetry", "otel", "observability"]
+}
