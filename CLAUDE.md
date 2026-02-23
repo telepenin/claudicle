@@ -33,7 +33,8 @@ ClickHouse auth via env vars (`CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD`) in `.env`
 docker compose up -d
 
 # Start OTel Collector (install otelcol-contrib first)
-./scripts/run-otelcol.sh
+set -a && source .env && set +a
+otelcol-contrib --config cli/configs/otelcol-config.yaml
 
 # Dev server (Next.js, outside Docker)
 npm run dev
@@ -93,7 +94,6 @@ All data lives in the canonical OTel schema table `otel_logs` (auto-created by t
 - `src/lib/clickhouse.ts` — ClickHouse client singleton
 - `src/lib/queries.ts` — all ClickHouse queries (OTel events + JSONL sessions)
 - `src/lib/types.ts` — shared TypeScript types
-- `otelcol-config.yaml` — OTel Collector pipeline config (OTLP + filelog → ClickHouse)
+- `cli/configs/otelcol-config.yaml` — OTel Collector pipeline config (OTLP + filelog → ClickHouse)
 - `docker-compose.yml` — ClickHouse + Next.js app
-- `scripts/run-otelcol.sh` — start OTel Collector locally
 - `cli/` — npm CLI package (see "CLI Package" section above)

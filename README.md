@@ -87,7 +87,7 @@ Claude Code ───────┤                                            
 | OTel metrics | token usage, cost, session count, lines of code, commits, PRs, active time |
 | JSONL logs (optional) | full conversation transcripts — prompts, responses, thinking blocks, tool I/O |
 
-Run the OTel Collector locally (`./scripts/run-otelcol.sh`) to enable JSONL log collection. See the [Installation Guide](docs/installation.md#5-optional-start-the-otel-collector).
+Run the OTel Collector locally to enable JSONL log collection. See the [Installation Guide](docs/installation.md).
 
 ## Roadmap
 

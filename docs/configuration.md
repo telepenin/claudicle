@@ -83,7 +83,7 @@ All components (Docker Compose, OTel Collector, Next.js app) read from the `.env
 |------|---------|
 | `.env` | ClickHouse credentials, shared by all components |
 | `~/.claude/settings.json` | Claude Code global settings -- OTel env vars and resource attributes go here |
-| `configs/otelcol-config.yaml` | OTel Collector pipeline config (OTLP receiver, filelog receiver, ClickHouse exporter) |
+| `cli/configs/otelcol-config.yaml` | OTel Collector pipeline config (OTLP receiver, filelog receiver, ClickHouse exporter) |
 
 ## Verifying the Pipeline
 

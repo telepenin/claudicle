@@ -1,7 +1,7 @@
 /**
  * Generate otelcol-config.yaml from the bundled source config.
- * Reads cli/configs/otelcol-config.yaml (copied from configs/otelcol-config.yaml)
- * and replaces the ClickHouse exporter section with user-supplied credentials.
+ * Reads cli/configs/otelcol-config.yaml and replaces the ClickHouse exporter
+ * section with user-supplied credentials.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";

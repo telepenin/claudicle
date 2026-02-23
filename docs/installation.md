@@ -172,12 +172,81 @@ All config is stored in `~/.claudicle/` (override with `CLAUDICLE_HOME`):
 
 ## Development setup
 
-For local development of the Next.js app (outside Docker):
+For developing Claudicle itself — running all components locally from source.
+
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/telepenin/claudicle.git && cd claudicle
 cp .env.example .env    # set CLICKHOUSE_USER and CLICKHOUSE_PASSWORD
-docker compose up -d    # ClickHouse + pre-built UI
+```
+
+### 2. Start ClickHouse
+
+```bash
+docker compose up -d clickhouse
+```
+
+### 3. Start the Next.js dev server
+
+```bash
 npm install
 npm run dev             # dev server on :3000
 ```
+
+### 4. Install otelcol-contrib
+
+The OTel Collector Contrib distribution is required to collect both OTLP telemetry and JSONL session logs.
+
+**macOS (Homebrew):**
+
+```bash
+brew install open-telemetry/opentelemetry-collector/opentelemetry-collector-contrib
+```
+
+**Linux (download binary):**
+
+```bash
+# Check latest version at https://github.com/open-telemetry/opentelemetry-collector-releases/releases
+OTELCOL_VERSION=0.115.0
+curl -fSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_VERSION}/otelcol-contrib_${OTELCOL_VERSION}_linux_amd64.tar.gz" | tar xz
+sudo mv otelcol-contrib /usr/local/bin/
+```
+
+Verify:
+
+```bash
+otelcol-contrib --version
+```
+
+### 5. Run the OTel Collector
+
+Source credentials from `.env` and run `otelcol-contrib` with the bundled config:
+
+```bash
+set -a && source .env && set +a
+otelcol-contrib --config cli/configs/otelcol-config.yaml
+```
+
+The config (`cli/configs/otelcol-config.yaml`) reads `CLICKHOUSE_USER` and `CLICKHOUSE_PASSWORD` from environment variables and:
+- Listens on **port 4318** (HTTP) for OTLP data from Claude Code
+- Tails `~/.claude/projects/**/*.jsonl` for session log files
+- Exports everything to ClickHouse on `localhost:9000`
+
+### 6. Configure Claude Code to send telemetry
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"
+  }
+}
+```
+
+Open [http://localhost:3000](http://localhost:3000) and start a Claude Code session — data should appear within seconds.
