@@ -10,7 +10,11 @@ export async function run(argv) {
   const config = readConfig();
 
   const version = config.version || (await import("../../package.json", { with: { type: "json" } })).default.version;
-  const port = args.port || config.ui.port || 3000;
+  const port = Number(args.port || config.ui.port || 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error("Error: --port must be a valid port number (1-65535)");
+    process.exit(1);
+  }
   const chUrl = args["clickhouse-url"] || config.clickhouse.url;
   const chUser = args.user || config.clickhouse.user;
   const chPassword = args.password || config.clickhouse.password;

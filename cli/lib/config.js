@@ -25,7 +25,7 @@ export function readConfig() {
     return structuredClone(DEFAULT_CONFIG);
   }
   const raw = readFileSync(configPath, "utf-8");
-  return { ...structuredClone(DEFAULT_CONFIG), ...JSON.parse(raw) };
+  return deepMerge(structuredClone(DEFAULT_CONFIG), JSON.parse(raw));
 }
 
 export function writeConfig(partial) {
@@ -33,7 +33,7 @@ export function writeConfig(partial) {
   mkdirSync(dir, { recursive: true });
   const existing = readConfig();
   const merged = deepMerge(existing, partial);
-  writeFileSync(join(dir, "config.json"), JSON.stringify(merged, null, 2) + "\n");
+  writeFileSync(join(dir, "config.json"), JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
 }
 
 function deepMerge(target, source) {

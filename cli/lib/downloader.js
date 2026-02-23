@@ -1,5 +1,5 @@
-import { execSync } from "node:child_process";
-import { mkdirSync, existsSync, createWriteStream } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, existsSync, createWriteStream, unlinkSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -21,7 +21,11 @@ export async function getLatestVersion(fetchFn = globalThis.fetch) {
   });
   if (!resp.ok) throw new Error(`GitHub API error (${resp.status})`);
   const data = await resp.json();
-  return data.tag_name.replace(/^v/, "");
+  const version = data.tag_name.replace(/^v/, "");
+  if (!/^\d+\.\d+\.\d+/.test(version)) {
+    throw new Error(`Invalid version format: ${version}`);
+  }
+  return version;
 }
 
 export async function downloadAndExtract(version, fetchFn = globalThis.fetch) {
@@ -39,8 +43,14 @@ export async function downloadAndExtract(version, fetchFn = globalThis.fetch) {
   await pipeline(Readable.fromWeb(resp.body), createWriteStream(tarball));
 
   mkdirSync(versionDir, { recursive: true });
-  execSync(`tar -xzf ${tarball} -C ${versionDir}`, { stdio: "pipe" });
-  execSync(`rm ${tarball}`, { stdio: "pipe" });
+  try {
+    execFileSync("tar", ["-xzf", tarball, "-C", versionDir], { stdio: "pipe" });
+  } catch (err) {
+    rmSync(versionDir, { recursive: true, force: true });
+    unlinkSync(tarball);
+    throw new Error(`Failed to extract tarball: ${err.message}`);
+  }
+  unlinkSync(tarball);
 
   console.log(`Extracted to ${versionDir}`);
   return versionDir;
