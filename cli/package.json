@@ -1,0 +1,33 @@
+{
+  "name": "claudicle",
+  "version": "1.0.0",
+  "description": "CLI to install and run the Claudicle UI for Claude Code session telemetry",
+  "type": "module",
+  "bin": {
+    "claudicle": "./bin/claudicle.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "schema/"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "claude-code",
+    "telemetry",
+    "opentelemetry",
+    "clickhouse",
+    "cli"
+  ],
+  "author": "Nikolay Telepenin",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
