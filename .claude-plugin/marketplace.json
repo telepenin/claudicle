@@ -7,7 +7,7 @@
     {
       "name": "claudicle",
       "description": "Configure Claude Code telemetry for Claudicle",
-      "source": "./"
+      "source": "./plugin"
     }
   ]
 }
