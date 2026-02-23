@@ -3,18 +3,21 @@
 const command = process.argv[2];
 
 const commands = {
+  config: () => import("../lib/commands/config.js"),
   init: () => import("../lib/commands/init.js"),
   start: () => import("../lib/commands/start.js"),
   stop: () => import("../lib/commands/stop.js"),
   update: () => import("../lib/commands/update.js"),
   status: () => import("../lib/commands/status.js"),
   install: () => import("../lib/commands/install.js"),
+  setup: () => import("../lib/commands/setup.js"),
 };
 
 if (!command || !commands[command]) {
   console.log(`claudicle — Claude Code session telemetry UI
 
 Usage:
+  claudicle config init         Save ClickHouse connection parameters
   claudicle init                Initialize ClickHouse schema
   claudicle start               Start the UI server
   claudicle stop                Stop the UI server
@@ -22,6 +25,8 @@ Usage:
   claudicle status              Show version and server status
   claudicle install collector   Install OTel Collector as a system service
   claudicle install ui          Install the UI server as a system service
+  claudicle setup collector     Full setup: config + schema + collector service
+  claudicle setup ui            Full setup: config + schema + UI service
 
 Options (for init/start/install):
   --clickhouse-url <url>   ClickHouse HTTP URL (default: http://localhost:8123)

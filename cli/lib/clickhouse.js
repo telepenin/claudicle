@@ -12,3 +12,17 @@ export async function runSQL(sql, config, fetchFn = globalThis.fetch) {
   }
   return resp.text();
 }
+
+/**
+ * Check that ClickHouse is reachable and credentials are valid.
+ * Exits with code 1 on failure.
+ */
+export async function checkClickHouse(config) {
+  console.log(`Checking ClickHouse at ${config.url}...`);
+  try {
+    await runSQL("SELECT 1", config);
+  } catch (err) {
+    console.error(`Error: Cannot connect to ClickHouse at ${config.url}\n${err.message}`);
+    process.exit(1);
+  }
+}

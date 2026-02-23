@@ -29,22 +29,18 @@ describe("detectPlatform", () => {
 
 describe("detectServiceType", () => {
   it("returns systemd when --systemd flag is set", () => {
-    expect(detectServiceType({ systemd: true }, "darwin")).toBe("systemd");
+    expect(detectServiceType({ systemd: true })).toBe("systemd");
   });
 
   it("returns launchd when --launchd flag is set", () => {
-    expect(detectServiceType({ launchd: true }, "linux")).toBe("launchd");
+    expect(detectServiceType({ launchd: true })).toBe("launchd");
   });
 
-  it("auto-detects launchd on darwin", () => {
-    expect(detectServiceType({}, "darwin")).toBe("launchd");
+  it("returns null when no flag is set", () => {
+    expect(detectServiceType({})).toBeNull();
   });
 
-  it("auto-detects systemd on linux", () => {
-    expect(detectServiceType({}, "linux")).toBe("systemd");
-  });
-
-  it("throws for unsupported platform when no flag", () => {
-    expect(() => detectServiceType({}, "win32")).toThrow("Cannot auto-detect service type");
+  it("returns null with no args", () => {
+    expect(detectServiceType()).toBeNull();
   });
 });

@@ -2,23 +2,20 @@ import { spawn } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "../args.js";
-import { readConfig, writeConfig, getConfigDir } from "../config.js";
+import { readState, getConfigDir, resolveClickHouseConfig, resolveUiPort } from "../config.js";
 import { downloadAndExtract } from "../downloader.js";
 
 export async function run(argv) {
   const args = parseArgs(argv);
-  const config = readConfig();
 
-  const version = config.version || (await import("../../package.json", { with: { type: "json" } })).default.version;
-  const port = Number(args.port || config.ui.port || 3000);
+  const state = readState();
+  const version = state.version || (await import("../../package.json", { with: { type: "json" } })).default.version;
+  const port = resolveUiPort(args);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     console.error("Error: --port must be a valid port number (1-65535)");
     process.exit(1);
   }
-  const chUrl = args["clickhouse-url"] || config.clickhouse.url;
-  const chUser = args.user || config.clickhouse.user;
-  const chPassword = args.password || config.clickhouse.password;
-  const chDb = args.database || config.clickhouse.database;
+  const { url: chUrl, user: chUser, password: chPassword, database: chDb } = resolveClickHouseConfig(args);
 
   // Check if already running
   const pidFile = join(getConfigDir(), "claudicle.pid");
@@ -40,15 +37,6 @@ export async function run(argv) {
   if (!existsSync(serverJs)) {
     console.error(`Error: server.js not found in ${versionDir}. Try 'claudicle update'.`);
     process.exit(1);
-  }
-
-  // Save config
-  if (args["clickhouse-url"] || args.user || args.password) {
-    writeConfig({
-      clickhouse: { url: chUrl, user: chUser, password: chPassword, database: chDb },
-      ui: { port: Number(port) },
-      version,
-    });
   }
 
   // Spawn detached server

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveClickHouseTcpEndpoint, generateCollectorConfig } from "./otelcol-config.js";
+import { deriveClickHouseTcpEndpoint, generateCollectorConfig, readConfigTemplate } from "./otelcol-config.js";
 
 describe("deriveClickHouseTcpEndpoint", () => {
   it("converts default HTTP URL to TCP", () => {
@@ -27,6 +27,15 @@ describe("deriveClickHouseTcpEndpoint", () => {
   });
 });
 
+describe("readConfigTemplate", () => {
+  it("reads the bundled otelcol-config.yaml", () => {
+    const template = readConfigTemplate();
+    expect(template).toContain("receivers:");
+    expect(template).toContain("exporters:");
+    expect(template).toContain("clickhouse:");
+  });
+});
+
 describe("generateCollectorConfig", () => {
   const chConfig = {
     url: "http://localhost:8123",
@@ -35,10 +44,10 @@ describe("generateCollectorConfig", () => {
     database: "claude_logs",
   };
 
-  it("substitutes all placeholders", () => {
+  it("replaces env-var references with literal values", () => {
     const config = generateCollectorConfig(chConfig);
-    expect(config).not.toContain("{{");
-    expect(config).not.toContain("}}");
+    expect(config).not.toContain("${env:CLICKHOUSE_USER}");
+    expect(config).not.toContain("${env:CLICKHOUSE_PASSWORD}");
   });
 
   it("contains correct TCP endpoint", () => {
@@ -70,5 +79,10 @@ describe("generateCollectorConfig", () => {
     const config = generateCollectorConfig(chConfig);
     expect(config).toContain("filelog/sessions:");
     expect(config).toContain(".claude/projects/**/*.jsonl");
+  });
+
+  it("preserves non-exporter env vars like HOME", () => {
+    const config = generateCollectorConfig(chConfig);
+    expect(config).toContain("${env:HOME}");
   });
 });

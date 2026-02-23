@@ -1,12 +1,26 @@
 /**
  * systemd unit and launchd plist generators + installers.
+ * Reads per-service template files from cli/configs/ and substitutes named placeholders.
+ * Environment variables are written to env files (~/.claudicle/{service}.env).
  */
 
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { getConfigDir } from '../config.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CONFIGS_DIR = join(__dirname, '..', '..', 'configs');
+
+export function readSystemdTemplate(service) {
+  return readFileSync(join(CONFIGS_DIR, `${service}.service`), 'utf-8');
+}
+
+export function readLaunchdTemplate(service) {
+  return readFileSync(join(CONFIGS_DIR, `${service}.plist`), 'utf-8');
+}
 
 export function escapeXml(str) {
   return String(str)
@@ -17,25 +31,13 @@ export function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
-export function generateSystemdUnit(name, description, execStart, env = {}) {
-  const envLines = Object.entries(env)
-    .map(([k, v]) => `Environment=${k}=${v}`)
-    .join('\n');
 
-  return `[Unit]
-Description=${description}
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=${execStart}
-Restart=on-failure
-RestartSec=5
-${envLines}
-
-[Install]
-WantedBy=default.target
-`.trimStart();
+export function generateSystemdUnit(template, vars) {
+  let result = template;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{{${key}}}`, value);
+  }
+  return result;
 }
 
 export function installSystemdService(unitName, unitContent) {
@@ -51,40 +53,13 @@ export function installSystemdService(unitName, unitContent) {
   console.log(`Service ${unitName} enabled and started.`);
 }
 
-export function generateLaunchdPlist(label, description, programArgs, env = {}) {
+export function generateLaunchdPlist(template, vars) {
   const logsDir = join(getConfigDir(), 'logs');
-  const argsXml = programArgs
-    .map((a) => `    <string>${escapeXml(a)}</string>`)
-    .join('\n');
-
-  const envXml = Object.entries(env).length > 0
-    ? `  <key>EnvironmentVariables</key>\n  <dict>\n${Object.entries(env)
-        .map(([k, v]) => `    <key>${escapeXml(k)}</key>\n    <string>${escapeXml(v)}</string>`)
-        .join('\n')}\n  </dict>`
-    : '';
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${escapeXml(label)}</string>
-  <key>ProgramArguments</key>
-  <array>
-${argsXml}
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>${escapeXml(join(logsDir, `${label}.out.log`))}</string>
-  <key>StandardErrorPath</key>
-  <string>${escapeXml(join(logsDir, `${label}.err.log`))}</string>
-${envXml}
-</dict>
-</plist>
-`;
+  let result = template.replaceAll('{{LOGS_DIR}}', escapeXml(logsDir));
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{{${key}}}`, escapeXml(value));
+  }
+  return result;
 }
 
 export function installLaunchdService(label, plistContent) {

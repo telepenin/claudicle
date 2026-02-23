@@ -1,0 +1,13 @@
+[Unit]
+Description=Claudicle OTel Collector
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={{BINARY_PATH}} --config {{CONFIG_PATH}}
+Restart=on-failure
+RestartSec=5
+EnvironmentFile={{ENV_FILE}}
+
+[Install]
+WantedBy=default.target

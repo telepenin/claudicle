@@ -2,61 +2,126 @@
 
 > See also: [README](../README.md) for a quick overview, [Configuration](configuration.md) for advanced settings.
 
+Claudicle has three components that are installed in order:
+
+1. **ClickHouse** — the database (one instance, central server)
+2. **Claudicle UI** — the web dashboard + schema initialization (same server as ClickHouse)
+3. **OTel Collector** — collects telemetry from Claude Code (every machine that runs Claude Code)
+
+```
+                        ClickHouse (:8123)
+                       ▲       ▲       ▲
+                      ╱        │        ╲
+                     ╱         │         ╲          Claudicle UI (:3000)
+                    ╱          │          ╲              reads ──▶ ClickHouse
+   Developer A     Developer B     CI runner
+   OTel Collector  OTel Collector  OTel Collector
+   + Claude Code   + Claude Code   + Claude Code
+```
+
 ## Prerequisites
 
-- **Docker** and **Docker Compose** (for ClickHouse + Next.js app)
-- **otelcol-contrib** (OpenTelemetry Collector Contrib distribution) — only needed for JSONL session logs
-
-### Installing otelcol-contrib
-
-Download the latest release from [opentelemetry-collector-releases](https://github.com/open-telemetry/opentelemetry-collector-releases/releases). Choose the `otelcol-contrib` binary for your platform.
-
-On macOS with Homebrew:
+- **Node.js >= 22** (for the `claudicle` CLI)
+- **Docker** (for ClickHouse) — or an existing ClickHouse instance
 
 ```bash
-brew install open-telemetry/opentelemetry-collector/opentelemetry-collector-contrib
+npm install -g claudicle
 ```
 
-Verify it's on your PATH:
+## Step 1. Install ClickHouse
+
+Run ClickHouse wherever you want your data stored. The simplest option is Docker:
 
 ```bash
-otelcol-contrib --version
-```
-
-## Quick Start
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/telepenin/claudicle.git
-cd claudicle
-```
-
-### 2. Configure credentials
-
-```bash
-cp .env.example .env
-# Edit .env to set CLICKHOUSE_USER and CLICKHOUSE_PASSWORD
-```
-
-All components (Docker Compose, OTel Collector, Next.js app) read from this file. No hardcoded defaults — if `.env` is missing, services will fail with a clear error.
-
-### 3. Start ClickHouse + Next.js app
-
-```bash
-docker compose up -d
+docker run -d \
+  --name clickhouse \
+  -p 8123:8123 -p 9000:9000 \
+  -e CLICKHOUSE_USER=claude \
+  -e CLICKHOUSE_PASSWORD=claude \
+  -v clickhouse-data:/var/lib/clickhouse \
+  clickhouse/clickhouse-server
 ```
 
 Verify it's running:
 
 ```bash
-curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
-  --data-binary 'SELECT 1'
+curl "http://localhost:8123/?user=claude&password=claude" --data-binary 'SELECT 1'
 ```
 
-### 4. Configure Claude Code
+> **Already have ClickHouse?** Skip this step — just note the URL, username, and password for the next steps.
 
-Add the following to your `~/.claude/settings.json`:
+## Step 2. Install the UI
+
+Run this on the same server as ClickHouse (or wherever you want the dashboard hosted). This command saves credentials, initializes the ClickHouse schema, and registers the UI as a system service:
+
+```bash
+claudicle setup ui --user claude --password claude
+```
+
+ClickHouse parameters can also be passed via environment variables instead of flags:
+
+```bash
+export CLICKHOUSE_USER=claude
+export CLICKHOUSE_PASSWORD=claude
+claudicle setup ui
+```
+
+Options:
+- `--clickhouse-url http://host:8123` / `CLICKHOUSE_URL` — ClickHouse HTTP URL (default: `http://localhost:8123`)
+- `--user` / `CLICKHOUSE_USER` — ClickHouse username (required)
+- `--password` / `CLICKHOUSE_PASSWORD` — ClickHouse password (required)
+- `--database` / `CLICKHOUSE_DB` — ClickHouse database (default: `claude_logs`)
+- `--port 3000` — UI port (default: 3000)
+- `--systemd` / `--launchd` — force service type (default: auto-detect from OS)
+
+Resolution priority: CLI flags > environment variables > saved env files > defaults.
+
+The UI is now running at [http://localhost:3000](http://localhost:3000) and will auto-start on boot.
+
+### Alternative: manual steps
+
+If you prefer to run each step separately:
+
+```bash
+claudicle config init --user claude --password claude
+claudicle init          # initialize ClickHouse schema
+claudicle start         # start the UI as a foreground process
+```
+
+## Step 3. Install the OTel Collector on every node
+
+The OTel Collector must run on **every machine where Claude Code runs**. It receives OTLP telemetry and tails local JSONL session logs, then exports everything to ClickHouse.
+
+```bash
+claudicle setup collector \
+  --user claude --password claude \
+  --clickhouse-url http://your-clickhouse-server:8123
+```
+
+Same as with the UI, ClickHouse parameters can be passed via environment variables:
+
+```bash
+export CLICKHOUSE_USER=claude
+export CLICKHOUSE_PASSWORD=claude
+claudicle setup collector --clickhouse-url http://your-clickhouse-server:8123
+```
+
+Options:
+- `--clickhouse-url http://host:8123` / `CLICKHOUSE_URL` — ClickHouse HTTP URL (required if ClickHouse is remote)
+- `--user` / `CLICKHOUSE_USER` — ClickHouse username (required)
+- `--password` / `CLICKHOUSE_PASSWORD` — ClickHouse password (required)
+- `--database` / `CLICKHOUSE_DB` — ClickHouse database (default: `claude_logs`)
+- `--collector-version 0.115.0` — pin a specific collector version (default: latest)
+- `--systemd` / `--launchd` — force service type (default: auto-detect from OS)
+
+The collector:
+- Listens on **port 4318** (HTTP) for OTLP data from Claude Code
+- Tails `~/.claude/projects/**/*.jsonl` for session log files
+- Exports everything to ClickHouse
+
+## Step 4. Configure Claude Code
+
+On every machine that runs Claude Code, add the following to `~/.claude/settings.json`:
 
 ```json
 {
@@ -68,12 +133,12 @@ Add the following to your `~/.claude/settings.json`:
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
     "OTEL_LOG_USER_PROMPTS": "1",
     "OTEL_LOG_TOOL_DETAILS": "1",
-    "OTEL_RESOURCE_ATTRIBUTES": "project=my-project,developer=nikolay"
+    "OTEL_RESOURCE_ATTRIBUTES": "project=my-project,developer=your-name"
   }
 }
 ```
 
-`OTEL_RESOURCE_ATTRIBUTES` is a comma-separated list of `key=value` pairs that appear as filter dropdowns in the dashboard. Supported keys:
+`OTEL_RESOURCE_ATTRIBUTES` is a comma-separated list of `key=value` pairs that appear as filter dropdowns in the dashboard:
 
 | Key | Description | Example |
 |-----|-------------|---------|
@@ -82,30 +147,37 @@ Add the following to your `~/.claude/settings.json`:
 | `team` | Team name | `platform`, `frontend` |
 | `developer` | Developer name | `nikolay` |
 
-Only dimensions with data in ClickHouse are shown. Once the settings file is saved, run `claude` normally — no wrapper script needed.
+Once saved, run `claude` normally — no wrapper script needed.
 
-### 5. (Optional) Start the OTel Collector
+## Verify the pipeline
 
-The OTel Collector enables full conversation transcripts (JSONL session logs). Without it, you still get OTel events and metrics.
+Open [http://localhost:3000](http://localhost:3000) to view the dashboard. Start a Claude Code session and you should see data appear within a few seconds.
+
+To check data is flowing into ClickHouse:
 
 ```bash
-./scripts/run-otelcol.sh
+curl "http://localhost:8123/?user=claude&password=claude&database=claude_logs" \
+  --data-binary 'SELECT count() FROM otel_logs'
 ```
 
-The collector:
-- Listens on **port 4318** (HTTP) for OTLP data from Claude Code
-- Tails `~/.claude/projects/**/*.jsonl` for session log files
-- Exports everything to ClickHouse
+## Configuration files
 
-The collector must run on the same machine as Claude Code (it reads local JSONL files).
+All config is stored in `~/.claudicle/` (override with `CLAUDICLE_HOME`):
 
-### 6. Browse sessions
+| File | Contents |
+|------|----------|
+| `collector.env` | `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` |
+| `ui.env` | `PORT`, `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, `CLICKHOUSE_DB` |
+| `state.json` | Install metadata (UI version, collector version) |
 
-Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
+## Development setup
 
 For local development of the Next.js app (outside Docker):
 
 ```bash
+git clone https://github.com/telepenin/claudicle.git && cd claudicle
+cp .env.example .env    # set CLICKHOUSE_USER and CLICKHOUSE_PASSWORD
+docker compose up -d    # ClickHouse + pre-built UI
 npm install
-npm run dev
+npm run dev             # dev server on :3000
 ```

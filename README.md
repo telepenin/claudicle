@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/telepenin/claudicle/actions/workflows/ci.yml/badge.svg)](https://github.com/telepenin/claudicle/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/telepenin/claudicle/graph/badge.svg)](https://codecov.io/gh/telepenin/claudicle)
+[![npm version](https://img.shields.io/npm/v/claudicle.svg)](https://www.npmjs.com/package/claudicle)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">
@@ -44,12 +45,16 @@ Open [http://localhost:3000](http://localhost:3000). For full setup details, see
 
 ### Alternative: Install via npm
 
-If you already have ClickHouse running, install just the UI:
+If you already have ClickHouse running:
 
 ```bash
 npm install -g claudicle
-claudicle init --clickhouse-url http://your-host:8123 --user claude --password claude
-claudicle start
+
+# Install the UI (saves credentials, initializes schema, registers as system service)
+claudicle setup ui --user claude --password claude
+
+# Install the OTel Collector on every machine running Claude Code
+claudicle setup collector --user claude --password claude
 ```
 
 ## Features

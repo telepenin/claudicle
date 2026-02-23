@@ -1,10 +1,10 @@
-import { readConfig, writeConfig } from "../config.js";
+import { readState, writeState } from "../config.js";
 import { getLatestVersion, downloadAndExtract } from "../downloader.js";
 
 export async function run() {
-  const config = readConfig();
+  const state = readState();
   const pkgVersion = (await import("../../package.json", { with: { type: "json" } })).default.version;
-  const currentVersion = config.version || pkgVersion;
+  const currentVersion = state.version || pkgVersion;
 
   console.log(`Current version: ${currentVersion}`);
   console.log("Checking for updates...");
@@ -18,6 +18,6 @@ export async function run() {
 
   console.log(`New version available: ${latest}`);
   await downloadAndExtract(latest);
-  writeConfig({ version: latest });
+  writeState({ version: latest });
   console.log(`Updated to v${latest}. Restart with 'claudicle stop && claudicle start'.`);
 }

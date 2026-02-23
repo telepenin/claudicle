@@ -41,10 +41,27 @@ npm run dev
 # Build
 npm run build
 
+# Run CLI tests
+cd cli && npx vitest run
+
 # Verify pipeline is receiving data (curl is ~200x faster than docker exec)
 curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=claude_logs" \
   --data-binary 'SELECT count() FROM otel_logs'
 ```
+
+## CLI Package (`cli/`)
+
+Thin npm installer (`npm install -g claudicle`) that downloads pre-built UI from GitHub Releases. Zero runtime dependencies, ESM, Node.js >= 22.
+
+- `cli/bin/claudicle.js` — entry point, dispatches subcommands
+- `cli/lib/config.js` — read/write `~/.claudicle/config.json`, `CLAUDICLE_HOME` env override
+- `cli/lib/args.js` — lightweight `--key value` / `--key=value` arg parser
+- `cli/lib/clickhouse.js` — ClickHouse HTTP client using native `fetch()`
+- `cli/lib/downloader.js` — fetches UI tarball + init.sql from GitHub Releases, caches in `~/.claudicle/versions/{version}/`
+- `cli/lib/commands/` — `init`, `start`, `stop`, `update`, `status`
+- `cli/schema/init.sql` — bundled fallback copy of `clickhouse/init.sql`
+
+**Release workflow** (`.github/workflows/release.yml`): on `v*` tag push → build Next.js standalone → package tarball → create GitHub Release → publish CLI to npm. Requires `NPM_TOKEN` repo secret.
 
 ## Tech Stack
 
@@ -79,3 +96,4 @@ All data lives in the canonical OTel schema table `otel_logs` (auto-created by t
 - `otelcol-config.yaml` — OTel Collector pipeline config (OTLP + filelog → ClickHouse)
 - `docker-compose.yml` — ClickHouse + Next.js app
 - `scripts/run-otelcol.sh` — start OTel Collector locally
+- `cli/` — npm CLI package (see "CLI Package" section above)

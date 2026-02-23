@@ -15,11 +15,39 @@ Requires Node.js >= 22.
 
 ## Usage
 
+### Quick Setup
+
+Run a single command to save credentials, initialize the ClickHouse schema, and install a system service:
+
+```bash
+# Set up the OTel Collector (receives telemetry from Claude Code)
+claudicle setup collector --user claude --password claude
+
+# Or set up the UI server (dashboard)
+claudicle setup ui --user claude --password claude
+```
+
+All options from the individual commands (`config init`, `init`, `install`) are accepted.
+
+### Save ClickHouse connection parameters
+
+```bash
+claudicle config init --user claude --password claude
+```
+
+Options:
+- `--clickhouse-url http://host:8123` — ClickHouse HTTP URL (default: `http://localhost:8123`)
+- `--user` / `--password` — ClickHouse credentials (required)
+- `--database` — ClickHouse database (default: `claude_logs`)
+- `--port 3000` — UI port (default: 3000)
+
 ### Initialize ClickHouse schema
 
 ```bash
-claudicle init --clickhouse-url http://your-host:8123 --user claude --password claude
+claudicle init
 ```
+
+Reads credentials from saved config. You can also pass `--user` and `--password` as overrides.
 
 ### Start the UI
 
@@ -80,7 +108,7 @@ The CLI is a thin installer (~8 KB). On first `claudicle start`, it downloads a 
 
 ## Configuration
 
-Config is stored in `~/.claudicle/config.json`. You can override the config directory with the `CLAUDICLE_HOME` environment variable.
+Config is stored in env files (`~/.claudicle/collector.env`, `~/.claudicle/ui.env`) and install metadata in `~/.claudicle/state.json`. Override the config directory with the `CLAUDICLE_HOME` environment variable.
 
 ## Full Documentation
 

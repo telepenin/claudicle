@@ -26,12 +26,8 @@ export function detectPlatform(platform = process.platform, arch = process.arch)
   return { os, arch: mappedArch };
 }
 
-export function detectServiceType(args = {}, platform = process.platform) {
+export function detectServiceType(args = {}) {
   if (args.systemd) return 'systemd';
   if (args.launchd) return 'launchd';
-
-  if (platform === 'darwin') return 'launchd';
-  if (platform === 'linux') return 'systemd';
-
-  throw new Error(`Cannot auto-detect service type for platform: ${platform}`);
+  return null;
 }

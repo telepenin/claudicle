@@ -1,15 +1,16 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { readConfig, getConfigDir } from "../config.js";
+import { readState, readEnvFile, getConfigDir } from "../config.js";
 
 export async function run() {
-  const config = readConfig();
+  const state = readState();
+  const uiEnv = readEnvFile("ui");
   const pkgVersion = (await import("../../package.json", { with: { type: "json" } })).default.version;
 
   console.log(`CLI version:  ${pkgVersion}`);
-  console.log(`UI version:   ${config.version || "not downloaded"}`);
-  console.log(`ClickHouse:   ${config.clickhouse.url}`);
-  console.log(`UI port:      ${config.ui.port}`);
+  console.log(`UI version:   ${state.version || "not downloaded"}`);
+  console.log(`ClickHouse:   ${uiEnv.CLICKHOUSE_URL || "http://localhost:8123"}`);
+  console.log(`UI port:      ${uiEnv.PORT || "3000"}`);
 
   const pidFile = join(getConfigDir(), "claudicle.pid");
   if (existsSync(pidFile)) {
