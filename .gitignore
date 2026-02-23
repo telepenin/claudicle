@@ -13,3 +13,4 @@ yarn-error.log*
 coverage/
 .playwright-mcp/
 .claude/plans/
+.worktrees/
