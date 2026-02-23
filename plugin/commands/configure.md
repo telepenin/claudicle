@@ -1,5 +1,5 @@
 ---
-name: configure
+name: claudicle-configure
 description: Configure Claude Code telemetry for Claudicle — writes OTel env vars to .claude/settings.json and resource attributes to .claude/settings.local.json
 allowed-tools:
   - Read
