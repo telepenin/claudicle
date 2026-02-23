@@ -5,7 +5,7 @@
   "author": {
     "name": "Claudicle"
   },
-  "repository": "https://github.com/nicktelepenin/claudicle",
+  "repository": "https://github.com/telepenin/claudicle",
   "license": "MIT",
   "keywords": ["telemetry", "otel", "observability"]
 }

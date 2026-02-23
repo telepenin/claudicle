@@ -16,11 +16,13 @@ Configure Claude Code to export telemetry to the local Claudicle OTel Collector.
 
 1. **Check claudicle is initialized**: Verify `~/.claudicle/` directory exists (created by `claudicle config init`). If `CLAUDICLE_HOME` env var is set, check that path instead. If the directory does not exist, stop and tell the user to run `claudicle config init` first (or `npx claudicle setup`).
 
-2. **Handle --disable flag**: If the user passed `--disable`, remove the telemetry env vars from `.claude/settings.json` instead of adding them. Remove these keys from the `env` object: `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOGS_EXPORTER`, `OTEL_METRICS_EXPORTER`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`. If the `env` object becomes empty, remove the `env` key entirely. Also remove `OTEL_RESOURCE_ATTRIBUTES` from the `env` object in `.claude/settings.local.json` (if present). Write both files and tell the user telemetry has been disabled and they should restart Claude Code.
+2. **Check OTel Collector is running**: Run `lsof -iTCP:4318 -sTCP:LISTEN -t` to check if something is listening on port 4318. If nothing is listening, warn the user that the OTel Collector does not appear to be running on port 4318 and telemetry data will not be collected until it is started. Still proceed with configuration — this is a warning, not a blocker.
 
-3. **Read existing settings**: Read `.claude/settings.json` in the current working directory. If it does not exist, start with an empty object `{}`.
+3. **Handle --disable flag**: If the user passed `--disable`, remove the telemetry env vars from `.claude/settings.json` instead of adding them. Remove these keys from the `env` object: `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOGS_EXPORTER`, `OTEL_METRICS_EXPORTER`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS`. If the `env` object becomes empty, remove the `env` key entirely. Also remove `OTEL_RESOURCE_ATTRIBUTES` from the `env` object in `.claude/settings.local.json` (if present). Write both files and tell the user telemetry has been disabled and they should restart Claude Code.
 
-4. **Merge env vars into settings.json**: Add or overwrite the `env` key in the settings object with these values:
+4. **Read existing settings**: Read `.claude/settings.json` in the current working directory. If it does not exist, start with an empty object `{}`.
+
+5. **Merge env vars into settings.json**: Add or overwrite the `env` key in the settings object with these values:
    ```json
    {
      "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
@@ -34,9 +36,9 @@ Configure Claude Code to export telemetry to the local Claudicle OTel Collector.
    ```
    Preserve any existing keys in the `env` object that are not in this list. Preserve all other top-level keys in the settings object (like `permissions`).
 
-5. **Write settings.json**: Write the merged JSON back to `.claude/settings.json` with 2-space indentation and a trailing newline.
+6. **Write settings.json**: Write the merged JSON back to `.claude/settings.json` with 2-space indentation and a trailing newline.
 
-6. **Configure resource attributes in settings.local.json**: Read `.claude/settings.local.json` (start with `{}` if it does not exist). Check if `OTEL_RESOURCE_ATTRIBUTES` already exists in the `env` object. If it does, show the current value and ask the user if they want to keep or update it. If it does not exist, ask the user for values using AskUserQuestion with these options:
+7. **Configure resource attributes in settings.local.json**: Read `.claude/settings.local.json` (start with `{}` if it does not exist). Check if `OTEL_RESOURCE_ATTRIBUTES` already exists in the `env` object. If it does, show the current value and ask the user if they want to keep or update it. If it does not exist, ask the user for values using AskUserQuestion with these options:
    - Suggest `project=<current directory name>,developer=<system username>` as the recommended default
    - Let the user provide custom `key=value` pairs
    - Let the user skip (no resource attributes)
@@ -45,7 +47,7 @@ Configure Claude Code to export telemetry to the local Claudicle OTel Collector.
 
    If the user provides values, merge `OTEL_RESOURCE_ATTRIBUTES` into the `env` key of `settings.local.json`. Preserve all existing keys. Write with 2-space indentation and a trailing newline.
 
-7. **Report**: Tell the user:
+8. **Report**: Tell the user:
    - Telemetry has been configured in `.claude/settings.json`
    - List the env vars that were set
    - If resource attributes were configured, mention they were written to `.claude/settings.local.json` (not committed to git)
