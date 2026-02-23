@@ -50,6 +50,30 @@ claudicle status
 claudicle update
 ```
 
+### Install OTel Collector as a system service
+
+Downloads `otelcol-contrib`, generates a config with your ClickHouse credentials, and registers it as a systemd (Linux) or launchd (macOS) service with auto-restart.
+
+```bash
+claudicle install collector
+```
+
+Options:
+- `--collector-version 0.115.0` — pin a specific collector version (default: latest)
+- `--systemd` / `--launchd` — force service type (default: auto-detect from OS)
+
+### Install UI as a system service
+
+Registers the UI server as a systemd/launchd service so it starts on boot and auto-restarts.
+
+```bash
+claudicle install ui
+```
+
+Options:
+- `--port 3000` — UI port (default: 3000)
+- `--systemd` / `--launchd` — force service type (default: auto-detect from OS)
+
 ## How It Works
 
 The CLI is a thin installer (~8 KB). On first `claudicle start`, it downloads a pre-built Next.js standalone bundle from [GitHub Releases](https://github.com/telepenin/claudicle/releases) and caches it in `~/.claudicle/`. The UI runs as a background Node.js process.

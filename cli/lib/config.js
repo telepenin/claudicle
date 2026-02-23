@@ -12,6 +12,9 @@ const DEFAULT_CONFIG = {
   ui: {
     port: 3000,
   },
+  collector: {
+    version: null,
+  },
   version: null,
 };
 

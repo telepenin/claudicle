@@ -37,6 +37,7 @@ describe("config", () => {
         database: "mydb",
       },
       ui: { port: 4000 },
+      collector: { version: null },
       version: "1.5.0",
     };
     writeConfig(config);
