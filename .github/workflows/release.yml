@@ -30,7 +30,7 @@ jobs:
           mkdir -p release-staging
           cp -r .next/standalone/. release-staging/
           cp -r .next/static release-staging/.next/static
-          cp -r public release-staging/public
+          [ -d public ] && cp -r public release-staging/public || true
           VERSION=${GITHUB_REF_NAME#v}
           tar -czf claudicle-ui-v${VERSION}.tar.gz -C release-staging .
 
