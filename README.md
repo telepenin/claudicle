@@ -26,6 +26,14 @@ cp .env.example .env
 docker compose up -d
 ```
 
+Configure Claude Code to send telemetry — use the plugin or add the settings manually:
+
+**Option A: Claude Code plugin** (recommended)
+
+Install the plugin with `/plugin marketplace add telepenin/claudicle`, then run `/claudicle-configure`. It writes the required env vars and interactively sets resource attributes (project, developer, team).
+
+**Option B: Manual**
+
 Add to `~/.claude/settings.json`:
 
 ```json

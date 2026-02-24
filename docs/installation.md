@@ -121,6 +121,19 @@ The collector:
 
 ## Step 4. Configure Claude Code
 
+### Option A: Claude Code plugin (recommended)
+
+Install the plugin once, then run the configure command:
+
+```bash
+/plugin marketplace add telepenin/claudicle
+/claudicle-configure
+```
+
+The plugin writes the required env vars to `.claude/settings.json` and interactively configures resource attributes in `.claude/settings.local.json` (per-developer, not committed to git). Use `/claudicle-configure --disable` to remove the configuration.
+
+### Option B: Manual
+
 On every machine that runs Claude Code, add the following to `~/.claude/settings.json`:
 
 ```json
@@ -235,7 +248,7 @@ The config (`cli/configs/otelcol-config.yaml`) reads `CLICKHOUSE_USER` and `CLIC
 
 ### 6. Configure Claude Code to send telemetry
 
-Add to `~/.claude/settings.json`:
+Run `/plugin marketplace add telepenin/claudicle` then `/claudicle-configure` in Claude Code, or manually add to `~/.claude/settings.json`:
 
 ```json
 {
