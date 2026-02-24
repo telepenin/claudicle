@@ -55,6 +55,10 @@ export interface LogSessionSummary {
   subagent_count: number;
   error_count: number;
   mcp_tool_count: number;
+  project: string | null;
+  environment: string | null;
+  team: string | null;
+  developer: string | null;
 }
 
 export interface LogListResponse {

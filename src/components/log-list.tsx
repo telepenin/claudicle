@@ -24,6 +24,10 @@ import {
   GitBranch,
   AlertCircle,
   Plug,
+  FolderOpen,
+  Globe,
+  Users,
+  User,
 } from "lucide-react";
 import { formatRelativeTime, extractProject } from "@/lib/format";
 import { useGlobalFilters } from "@/lib/use-global-filters";
@@ -88,6 +92,7 @@ export function LogList() {
             <TableRow>
               <TableHead>Session ID</TableHead>
               <TableHead>Project</TableHead>
+              <TableHead>Attributes</TableHead>
               <TableHead className="text-right">Messages</TableHead>
               <TableHead className="text-right">Breakdown</TableHead>
               <TableHead className="text-right">Started</TableHead>
@@ -98,7 +103,7 @@ export function LogList() {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -108,7 +113,7 @@ export function LogList() {
             ) : !data || data.sessions.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-8 text-center text-muted-foreground"
                 >
                   No logs found.
@@ -129,6 +134,34 @@ export function LogList() {
                     <span className="text-sm text-muted-foreground">
                       {extractProject(s.project_path)}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {s.project && (
+                        <Badge variant="outline" className="gap-1 text-xs font-normal" title="Project">
+                          <FolderOpen className="h-3 w-3" />
+                          {s.project}
+                        </Badge>
+                      )}
+                      {s.environment && (
+                        <Badge variant="outline" className="gap-1 text-xs font-normal" title="Environment">
+                          <Globe className="h-3 w-3" />
+                          {s.environment}
+                        </Badge>
+                      )}
+                      {s.team && (
+                        <Badge variant="outline" className="gap-1 text-xs font-normal" title="Team">
+                          <Users className="h-3 w-3" />
+                          {s.team}
+                        </Badge>
+                      )}
+                      {s.developer && (
+                        <Badge variant="outline" className="gap-1 text-xs font-normal" title="Developer">
+                          <User className="h-3 w-3" />
+                          {s.developer}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {Number(s.message_count)}

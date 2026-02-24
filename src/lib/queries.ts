@@ -271,22 +271,52 @@ export async function getLogSessionList(params: {
       clickhouse.query({
         query: `
           SELECT
-            session_id,
-            minMerge(first_ts) AS first_timestamp,
-            maxMerge(last_ts) AS last_timestamp,
-            countMerge(message_count) AS message_count,
-            countIfMerge(user_count) AS user_count,
-            countIfMerge(assistant_count) AS assistant_count,
-            countIfMerge(other_count) AS tool_count,
-            anyMerge(project_path) AS project_path,
-            uniqIfMerge(subagent_count) AS subagent_count,
-            countIfMerge(error_count) AS error_count,
-            countIfMerge(mcp_tool_count) AS mcp_tool_count
-          FROM mv_jsonl_sessions
-          GROUP BY session_id
-          ORDER BY last_timestamp DESC
-          LIMIT {limit:UInt32}
-          OFFSET {offset:UInt32}
+            s.session_id,
+            s.first_timestamp,
+            s.last_timestamp,
+            s.message_count,
+            s.user_count,
+            s.assistant_count,
+            s.tool_count,
+            s.project_path,
+            s.subagent_count,
+            s.error_count,
+            s.mcp_tool_count,
+            d.project,
+            d.environment,
+            d.team,
+            d.developer
+          FROM (
+            SELECT
+              session_id,
+              minMerge(first_ts) AS first_timestamp,
+              maxMerge(last_ts) AS last_timestamp,
+              countMerge(message_count) AS message_count,
+              countIfMerge(user_count) AS user_count,
+              countIfMerge(assistant_count) AS assistant_count,
+              countIfMerge(other_count) AS tool_count,
+              anyMerge(project_path) AS project_path,
+              uniqIfMerge(subagent_count) AS subagent_count,
+              countIfMerge(error_count) AS error_count,
+              countIfMerge(mcp_tool_count) AS mcp_tool_count
+            FROM mv_jsonl_sessions
+            GROUP BY session_id
+            ORDER BY last_timestamp DESC
+            LIMIT {limit:UInt32}
+            OFFSET {offset:UInt32}
+          ) s
+          LEFT JOIN (
+            SELECT
+              session_id,
+              anyIf(project, project != '') AS project,
+              anyIf(environment, environment != '') AS environment,
+              anyIf(team, team != '') AS team,
+              anyIf(developer, developer != '') AS developer
+            FROM otel_events
+            WHERE session_id != ''
+            GROUP BY session_id
+          ) d ON s.session_id = d.session_id
+          ORDER BY s.last_timestamp DESC
         `,
         query_params: { limit, offset },
         format: "JSONEachRow",
@@ -332,23 +362,53 @@ export async function getLogSessionList(params: {
   const result = await clickhouse.query({
     query: `
       SELECT
-        session_id,
-        min(msg_timestamp) as first_timestamp,
-        max(msg_timestamp) as last_timestamp,
-        count() as message_count,
-        countIf(msg_type = 'user') as user_count,
-        countIf(msg_type = 'assistant') as assistant_count,
-        countIf(msg_type NOT IN ('user', 'assistant')) as tool_count,
-        any(file_path) as project_path,
-        uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
-        countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count,
-        countIf(msg_type = 'assistant' AND position(raw, '"name":"mcp__') > 0) as mcp_tool_count
-      FROM jsonl_messages
-      ${whereClause}
-      GROUP BY session_id
-      ORDER BY last_timestamp DESC
-      LIMIT {limit:UInt32}
-      OFFSET {offset:UInt32}
+        s.session_id,
+        s.first_timestamp,
+        s.last_timestamp,
+        s.message_count,
+        s.user_count,
+        s.assistant_count,
+        s.tool_count,
+        s.project_path,
+        s.subagent_count,
+        s.error_count,
+        s.mcp_tool_count,
+        d.project,
+        d.environment,
+        d.team,
+        d.developer
+      FROM (
+        SELECT
+          session_id,
+          min(msg_timestamp) as first_timestamp,
+          max(msg_timestamp) as last_timestamp,
+          count() as message_count,
+          countIf(msg_type = 'user') as user_count,
+          countIf(msg_type = 'assistant') as assistant_count,
+          countIf(msg_type NOT IN ('user', 'assistant')) as tool_count,
+          any(file_path) as project_path,
+          uniqIf(agent_id, is_sidechain = 1 AND agent_id != '') as subagent_count,
+          countIf(msg_type = 'user' AND is_sidechain = 0 AND (position(raw, '"is_error":true') > 0 OR position(raw, '"is_error": true') > 0)) as error_count,
+          countIf(msg_type = 'assistant' AND position(raw, '"name":"mcp__') > 0) as mcp_tool_count
+        FROM jsonl_messages
+        ${whereClause}
+        GROUP BY session_id
+        ORDER BY last_timestamp DESC
+        LIMIT {limit:UInt32}
+        OFFSET {offset:UInt32}
+      ) s
+      LEFT JOIN (
+        SELECT
+          session_id,
+          anyIf(project, project != '') AS project,
+          anyIf(environment, environment != '') AS environment,
+          anyIf(team, team != '') AS team,
+          anyIf(developer, developer != '') AS developer
+        FROM otel_events
+        WHERE session_id != ''
+        GROUP BY session_id
+      ) d ON s.session_id = d.session_id
+      ORDER BY s.last_timestamp DESC
     `,
     query_params: { ...queryParams, limit, offset },
     format: "JSONEachRow",
