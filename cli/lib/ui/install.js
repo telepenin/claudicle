@@ -13,7 +13,7 @@ import { parseArgs } from "../args.js";
 import { resolveClickHouseConfig, resolveUiPort, writeEnvFile, readState } from "../config.js";
 import { checkClickHouse } from "../clickhouse.js";
 import { downloadAndExtract } from "../downloader.js";
-import { detectServiceType } from "./platform.js";
+import { detectServiceType } from "../install/platform.js";
 import {
   readSystemdTemplate,
   readLaunchdTemplate,
@@ -21,7 +21,7 @@ import {
   installSystemdService,
   generateLaunchdPlist,
   installLaunchdService,
-} from "./service.js";
+} from "../install/service.js";
 
 const SERVICE_NAME = "claudicle-ui";
 const LAUNCHD_LABEL = "com.claudicle.ui";

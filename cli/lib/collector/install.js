@@ -12,9 +12,9 @@
 import { parseArgs } from "../args.js";
 import { resolveClickHouseConfig, writeEnvFile, readState, writeState } from "../config.js";
 import { checkClickHouse } from "../clickhouse.js";
-import { detectPlatform, detectServiceType } from "./platform.js";
-import { getLatestCollectorVersion, downloadCollector, getCollectorBinaryPath } from "./collector-downloader.js";
-import { writeCollectorConfig } from "./otelcol-config.js";
+import { detectPlatform, detectServiceType } from "../install/platform.js";
+import { getLatestCollectorVersion, downloadCollector, getCollectorBinaryPath } from "../install/collector-downloader.js";
+import { writeCollectorConfig } from "../install/otelcol-config.js";
 import {
   readSystemdTemplate,
   readLaunchdTemplate,
@@ -22,7 +22,7 @@ import {
   installSystemdService,
   generateLaunchdPlist,
   installLaunchdService,
-} from "./service.js";
+} from "../install/service.js";
 
 const SERVICE_NAME = "claudicle-collector";
 const LAUNCHD_LABEL = "com.claudicle.collector";

@@ -54,12 +54,35 @@ curl "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSW
 
 Thin npm installer (`npm install -g claudicle`) that downloads pre-built UI from GitHub Releases. Zero runtime dependencies, ESM, Node.js >= 22.
 
-- `cli/bin/claudicle.js` — entry point, dispatches subcommands
+Resource-first CLI dispatch: `claudicle <resource> <action>` (e.g., `claudicle ui setup`, `claudicle collector status`).
+
+```bash
+# UI commands
+claudicle ui build --base-path /claudicle   # Build from source with custom base path
+claudicle ui update                          # Download latest UI release
+claudicle ui install --port 3001 --systemd   # Register as system service
+claudicle ui setup --port 3001 --systemd     # Full setup: config + schema + service
+claudicle ui start / stop / status           # Manage UI server
+
+# Collector commands
+claudicle collector install --systemd        # Install OTel Collector service
+claudicle collector setup --systemd          # Full setup: config + schema + service
+claudicle collector start / stop / status    # Manage collector service
+
+# Shared commands
+claudicle config init                        # Save ClickHouse credentials
+claudicle init                               # Initialize ClickHouse schema
+```
+
+- `cli/bin/claudicle.js` — entry point, two-level resource dispatch
+- `cli/lib/ui/` — UI commands: `build`, `install`, `setup`, `start`, `stop`, `status`, `update`
+- `cli/lib/collector/` — collector commands: `install`, `setup`, `start`, `stop`, `status`
+- `cli/lib/commands/` — shared top-level commands: `config`, `init`
+- `cli/lib/install/` — shared utilities: `service.js`, `platform.js`, `otelcol-config.js`, `collector-downloader.js`
 - `cli/lib/config.js` — read/write `~/.claudicle/config.json`, `CLAUDICLE_HOME` env override
 - `cli/lib/args.js` — lightweight `--key value` / `--key=value` arg parser
 - `cli/lib/clickhouse.js` — ClickHouse HTTP client using native `fetch()`
 - `cli/lib/downloader.js` — fetches UI tarball + init.sql from GitHub Releases, caches in `~/.claudicle/versions/{version}/`
-- `cli/lib/commands/` — `init`, `start`, `stop`, `update`, `status`
 - `cli/schema/init.sql` — bundled fallback copy of `clickhouse/init.sql`
 
 **Release workflow** (`.github/workflows/release.yml`): on `v*` tag push → build Next.js standalone → package tarball → create GitHub Release → publish CLI to npm. Requires `NPM_TOKEN` repo secret.
@@ -88,6 +111,16 @@ All data lives in the canonical OTel schema table `otel_logs` (auto-created by t
 - `GET /api/logs/[id]/text` — plain-text export of a conversation
 - `GET /api/stats` — aggregate stats for dashboard charts (accepts `project`, `environment`, `team`, `developer` query params)
 - `GET /api/dimensions` — distinct values for each resource attribute dimension
+
+## Schema Changes
+
+`cli/schema/init.sql` is the full schema for new installs. All statements use `CREATE ... IF NOT EXISTS` so re-running is safe. For changes to existing deployments:
+
+- **New table or MV** — add to `init.sql`. `IF NOT EXISTS` makes it idempotent.
+- **Add column** — use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in a numbered migration file. Also update the `CREATE TABLE` in `init.sql` for new installs.
+- **Change a materialized view** — MVs can't be altered. Use `DROP VIEW IF EXISTS` + `CREATE MATERIALIZED VIEW ... POPULATE` in a migration file. Do NOT put `DROP` in `init.sql` — it would re-run and re-populate on every setup.
+
+Migrations live in `cli/schema/migrations/` as numbered SQL files (`002.sql`, `003.sql`, ...). The current schema version is tracked in `~/.claudicle/state.json` as `schema_version`. Each migration runs once — the init command applies any migrations with a version higher than the stored `schema_version`.
 
 ## Key Source Locations
 
