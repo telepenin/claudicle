@@ -23,7 +23,12 @@ export async function run(argv) {
   // Try to fetch init.sql from GitHub, fall back to bundled
   const state = readState();
   const version = state.version || (await import("../../package.json", { with: { type: "json" } })).default.version;
-  let sql = await fetchInitSql(version);
+  let sql;
+  try {
+    sql = await fetchInitSql(version);
+  } catch {
+    sql = null;
+  }
   if (!sql) {
     console.log("Using bundled schema (GitHub fetch failed)");
     sql = readFileSync(join(__dirname, "..", "..", "schema", "init.sql"), "utf-8");
