@@ -29,6 +29,7 @@ receivers:
 extensions:
   file_storage:
     directory: ${env:HOME}/.claude-otelcol-storage
+    create_directory: true
 
 processors:
   batch:
