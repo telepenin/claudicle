@@ -34,7 +34,7 @@ export async function run(argv) {
   // ClickHouse HTTP API executes one statement at a time.
   const statements = sql
     .split(/;\s*\n/)
-    .map((s) => s.trim())
+    .map((s) => s.replace(/^(--.*\n?)+/gm, "").trim())
     .filter((s) => s && !s.startsWith("--"));
 
   for (const stmt of statements) {

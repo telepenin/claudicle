@@ -40,7 +40,7 @@ jobs:
         with:
           files: |
             claudicle-ui-*.tar.gz
-            clickhouse/init.sql
+            cli/schema/init.sql
 
       # Publish CLI to npm
       - name: Publish CLI to npm
