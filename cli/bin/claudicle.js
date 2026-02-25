@@ -3,6 +3,16 @@
 const command = process.argv[2];
 const subcommand = process.argv[3];
 
+if (command === "--version" || command === "-v") {
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const { dirname, join } = await import("node:path");
+  const dir = dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(readFileSync(join(dir, "..", "package.json"), "utf8"));
+  console.log(pkg.version);
+  process.exit(0);
+}
+
 // Resource groups: claudicle <resource> <action> [options]
 const resources = {
   ui: {
@@ -48,6 +58,8 @@ Usage:
 
   claudicle config init         Save ClickHouse connection parameters
   claudicle init                Initialize ClickHouse schema
+
+  claudicle --version           Show CLI version
 
 Options:
   --clickhouse-url <url>   ClickHouse HTTP URL (default: http://localhost:8123)
