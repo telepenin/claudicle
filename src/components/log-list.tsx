@@ -32,6 +32,7 @@ import {
 import { formatRelativeTime, extractProject } from "@/lib/format";
 import { useGlobalFilters } from "@/lib/use-global-filters";
 import type { LogListResponse } from "@/lib/types";
+import { basePath } from "@/lib/base-path";
 
 export function LogList() {
   const { filterQueryString } = useGlobalFilters();
@@ -53,7 +54,7 @@ export function LogList() {
         const filterParams = new URLSearchParams(filterQueryString);
         filterParams.forEach((v, k) => params.set(k, v));
       }
-      const res = await fetch(`/api/logs?${params}`);
+      const res = await fetch(`${basePath}/api/logs?${params}`);
       const json = await res.json();
       setData(json);
     } catch (e) {

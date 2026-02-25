@@ -22,6 +22,7 @@ import {
 } from "./conversation/turn-cards";
 import { ConversationSummary } from "./conversation/summary";
 import { RawJsonlView } from "./conversation/raw-view";
+import { basePath } from "@/lib/base-path";
 
 // ─── Main component ───────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   }, [searchParams, router, pathname]);
 
   useEffect(() => {
-    fetch(`/api/logs/${sessionId}`)
+    fetch(`${basePath}/api/logs/${sessionId}`)
       .then((r) => r.json())
       .then((json) => {
         if (json.error) {
@@ -80,7 +81,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
     if (!live || !cursorRef.current) return;
 
     const es = new EventSource(
-      `/api/logs/${sessionId}/stream?after=${encodeURIComponent(cursorRef.current)}`
+      `${basePath}/api/logs/${sessionId}/stream?after=${encodeURIComponent(cursorRef.current)}`
     );
 
     es.onmessage = (event) => {
@@ -213,7 +214,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
         {/* Download archive */}
         <div className="flex items-center gap-1">
           <a
-            href={`/api/logs/${sessionId}/archive`}
+            href={`${basePath}/api/logs/${sessionId}/archive`}
             download
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
@@ -221,9 +222,9 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
             Download .tar.gz
           </a>
           <button
-            title={`curl -f ${typeof window !== "undefined" ? window.location.origin : ""}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`}
+            title={`curl -f ${typeof window !== "undefined" ? window.location.origin : ""}${basePath}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`}
             onClick={() => {
-              const cmd = `curl -f ${window.location.origin}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`;
+              const cmd = `curl -f ${window.location.origin}${basePath}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/`;
               navigator.clipboard.writeText(cmd);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
@@ -234,9 +235,9 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
             {copied ? "Copied!" : "Copy curl"}
           </button>
           <button
-            title={`curl -f ${typeof window !== "undefined" ? window.location.origin : ""}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/ && claude --resume ${sessionId}`}
+            title={`curl -f ${typeof window !== "undefined" ? window.location.origin : ""}${basePath}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/ && claude --resume ${sessionId}`}
             onClick={() => {
-              const cmd = `curl -f ${window.location.origin}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/ && claude --resume ${sessionId}`;
+              const cmd = `curl -f ${window.location.origin}${basePath}/api/logs/${sessionId}/archive | tar -xz -C ~/.claude/projects/ && claude --resume ${sessionId}`;
               navigator.clipboard.writeText(cmd);
               setCopiedResume(true);
               setTimeout(() => setCopiedResume(false), 2000);

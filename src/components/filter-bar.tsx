@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import { useGlobalFilters, FILTER_KEYS } from "@/lib/use-global-filters";
 import type { DimensionValues } from "@/lib/types";
+import { basePath } from "@/lib/base-path";
 
 const DIMENSION_LABELS: Record<string, string> = {
   project: "Project",
@@ -25,7 +26,7 @@ export function FilterBar() {
   const [dimensions, setDimensions] = useState<DimensionValues | null>(null);
 
   const fetchDimensions = useCallback(() => {
-    fetch(`/api/dimensions${filterQueryString ? `?${filterQueryString}` : ""}`)
+    fetch(`${basePath}/api/dimensions${filterQueryString ? `?${filterQueryString}` : ""}`)
       .then((r) => r.json())
       .then((data) => setDimensions(data))
       .catch(() => {});

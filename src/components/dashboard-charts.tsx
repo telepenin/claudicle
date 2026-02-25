@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ToolBadge, TOOL_COLORS, DEFAULT_TOOL_COLOR, MCP_TOOL_COLOR } from "@/components/conversation/tool-renderers";
+import { basePath } from "@/lib/base-path";
 
 const TOOL_ICONS: Record<string, LucideIcon> = {
   Write: FileText, Edit: Pencil, Read: BookOpen, Bash: Terminal,
@@ -57,7 +58,7 @@ export function DashboardCharts({ data }: { data?: StatsResponse }) {
 
   useEffect(() => {
     if (data) return;
-    fetch("/api/stats")
+    fetch(`${basePath}/api/stats`)
       .then((r) => r.json())
       .then((d) => setFetched(d))
       .catch((e) => console.error("Failed to fetch stats:", e))

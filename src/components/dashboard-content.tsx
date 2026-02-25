@@ -8,6 +8,7 @@ import { DashboardCharts } from "@/components/dashboard-charts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCost, formatTokens, formatRelativeTime, extractProject } from "@/lib/format";
 import { useGlobalFilters } from "@/lib/use-global-filters";
+import { basePath } from "@/lib/base-path";
 import type { StatsResponse, LogSessionSummary } from "@/lib/types";
 
 export function DashboardContent() {
@@ -40,14 +41,14 @@ export function DashboardContent() {
   useEffect(() => {
     let cancelled = false;
     dispatch({ type: "loading" });
-    const statsUrl = `/api/stats${filterQueryString ? `?${filterQueryString}` : ""}`;
+    const statsUrl = `${basePath}/api/stats${filterQueryString ? `?${filterQueryString}` : ""}`;
 
     Promise.all([
       fetch(statsUrl).then((r) => {
         if (!r.ok) throw new Error(`Stats: ${r.status}`);
         return r.json();
       }),
-      fetch(`/api/logs?limit=5${filterQueryString ? `&${filterQueryString}` : ""}`).then((r) => {
+      fetch(`${basePath}/api/logs?limit=5${filterQueryString ? `&${filterQueryString}` : ""}`).then((r) => {
         if (!r.ok) throw new Error(`Logs: ${r.status}`);
         return r.json();
       }),
