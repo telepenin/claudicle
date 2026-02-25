@@ -102,6 +102,7 @@ Run the OTel Collector locally to enable JSONL log collection. See the [Installa
 - Session analysis reports — per-session health dashboards with error timelines, tool success rates, and actionable insights
 - Cross-session A/B testing — compare metrics across skill versions, CLAUDE.md configs, and MCP setups
 - Self-improving skills — analyze session history to auto-improve Claude Code skills (superpowers): detect failure patterns (over-tasked subagents, skill-triggered errors, MCP misfires), generate targeted SKILL.md edits, and A/B test skill versions across sessions to measure impact
+- Custom OTel Collector — fork otelcol-contrib with a filelog receiver that only watches JSONL sessions for projects with telemetry enabled (currently it watches all `~/.claude/projects/**/*.jsonl`)
 - JSONL redaction — strip sensitive data before ingestion
 - [OpenClaw](https://github.com/openclaw/openclaw) support
 
