@@ -1,12 +1,12 @@
 /**
- * `claudicle build ui` — build UI from source with custom options.
+ * `claudicle ui build` — build UI from source with custom options.
  *
  * Downloads source from GitHub, runs `npm ci && npm run build` with
  * the specified BASE_PATH, and stores the standalone output in the
  * versions directory (replacing any pre-built download).
  *
  * Usage:
- *   claudicle build ui --base-path /claudicle
+ *   claudicle ui build --base-path /claudicle
  */
 
 import { execFileSync } from "node:child_process";
@@ -36,7 +36,7 @@ async function buildUi(argv) {
   const basePath = args["base-path"];
 
   if (!basePath) {
-    console.error("Error: --base-path is required.\n\nUsage:\n  claudicle build ui --base-path /claudicle");
+    console.error("Error: --base-path is required.\n\nUsage:\n  claudicle ui build --base-path /claudicle");
     process.exit(1);
   }
 
@@ -114,21 +114,6 @@ async function buildUi(argv) {
   console.log(`\nRun 'claudicle setup ui' or 'claudicle install ui' to register as a service.`);
 }
 
-const subcommands = {
-  ui: buildUi,
-};
-
 export async function run(argv) {
-  const subcommand = argv[0];
-
-  if (!subcommand || !subcommands[subcommand]) {
-    console.log(`Usage:
-  claudicle build ui   Build UI from source with custom options
-
-Options:
-  --base-path <path>   URL base path (e.g. /claudicle)`);
-    process.exit(subcommand ? 1 : 0);
-  }
-
-  await subcommands[subcommand](argv.slice(1));
+  await buildUi(argv);
 }
