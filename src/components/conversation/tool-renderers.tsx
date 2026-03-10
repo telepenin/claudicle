@@ -58,6 +58,7 @@ export const TOOL_COLORS: Record<string, { border: string; bg: string }> = {
   Glob: { border: "border-teal-400", bg: "bg-teal-50 dark:bg-teal-950/20" },
   Grep: { border: "border-teal-400", bg: "bg-teal-50 dark:bg-teal-950/20" },
   Task: { border: "border-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/20" },
+  Agent: { border: "border-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/20" },
   WebSearch: { border: "border-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
   WebFetch: { border: "border-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
   TodoWrite: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
@@ -65,6 +66,7 @@ export const TOOL_COLORS: Record<string, { border: string; bg: string }> = {
   TaskUpdate: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
   TaskList: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
   TaskGet: { border: "border-amber-400", bg: "bg-amber-50 dark:bg-amber-950/20" },
+  TaskOutput: { border: "border-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/20" },
   AskUserQuestion: { border: "border-blue-400", bg: "bg-blue-50 dark:bg-blue-950/20" },
   EnterPlanMode: { border: "border-purple-400", bg: "bg-purple-50 dark:bg-purple-950/20" },
   ExitPlanMode: { border: "border-purple-400", bg: "bg-purple-50 dark:bg-purple-950/20" },
@@ -73,7 +75,7 @@ export const DEFAULT_TOOL_COLOR = { border: "border-gray-400", bg: "bg-gray-50 d
 export const MCP_TOOL_COLOR = { border: "border-fuchsia-400", bg: "bg-fuchsia-50 dark:bg-fuchsia-950/20" };
 
 // Tools that render their own result content (skip generic result toggle)
-export const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch", "Task", "AskUserQuestion", "ExitPlanMode"]);
+export const SELF_RENDERING_TOOLS = new Set(["Read", "Grep", "WebFetch", "WebSearch", "Task", "Agent", "TaskOutput", "AskUserQuestion", "ExitPlanMode"]);
 
 // ─── Write ───────────────────────────────────────────────────────────────
 
@@ -526,6 +528,76 @@ function WebFetchToolCall({
   );
 }
 
+// ─── TaskOutput ──────────────────────────────────────────────────────
+
+/** Extract content between `<tag>` and `</tag>` (greedy for output). */
+function extractTaskOutputTag(text: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
+  const m = text.match(re);
+  return m ? m[1].trim() : null;
+}
+
+function TaskOutputToolCall({
+  input,
+  resultContent,
+}: {
+  input: Record<string, unknown>;
+  resultContent?: string;
+}) {
+  const taskId = (input.task_id as string) ?? "";
+  const [showResult, setShowResult] = useState(false);
+
+  const status = resultContent ? extractTaskOutputTag(resultContent, "status") : null;
+  const output = resultContent ? extractTaskOutputTag(resultContent, "output") : null;
+  // Fall back to raw content if no <output> tag found
+  const displayContent = output ?? resultContent ?? "";
+  const resultLines = displayContent ? countLines(displayContent) : 0;
+
+  const statusCls =
+    status === "completed" ? "text-green-600 bg-green-100 dark:bg-green-900/30" :
+    status === "running" ? "text-blue-600 bg-blue-100 dark:bg-blue-900/30" :
+    status === "error" || status === "failed" ? "text-red-600 bg-red-100 dark:bg-red-900/30" :
+    "text-muted-foreground bg-muted";
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <ToolBadge label="TaskOutput" icon={Code} />
+        {taskId && (
+          <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4">
+            {taskId}
+          </Badge>
+        )}
+        {status && (
+          <Badge className={`text-[10px] px-1.5 py-0 h-4 ${statusCls} border-0`}>
+            {status}
+          </Badge>
+        )}
+      </div>
+      {displayContent && (
+        <div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowResult(!showResult)}
+          >
+            {showResult ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            <span>Output ({resultLines} lines)</span>
+          </button>
+          {showResult && (
+            <div className="mt-1 rounded-md bg-background">
+              <CollapsibleContent text={displayContent} maxLines={20} defaultOpen={true} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TaskCreate ───────────────────────────────────────────────────────
 
 function TaskCreateToolCall({ input }: { input: Record<string, unknown> }) {
@@ -899,12 +971,14 @@ function GenericToolCall({
 // ─── Task ────────────────────────────────────────────────────────────────
 
 export function TaskToolCall({
+  name: toolName = "Task",
   input,
   resultContent,
   subagentMessages,
   SubagentConversation,
   cwd,
 }: {
+  name?: string;
   input: Record<string, unknown>;
   resultContent?: string;
   subagentMessages?: LogMessage[];
@@ -918,7 +992,7 @@ export function TaskToolCall({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <ToolBadge label="Task" icon={Code} />
+        <ToolBadge label={toolName} icon={Code} />
         {subagentType && (
           <Badge variant="outline" className="text-xs font-mono">
             {subagentType}
@@ -982,7 +1056,8 @@ export function renderToolCallContent(
     case "Grep":
       return <GrepToolCall input={input} resultContent={resultContent} cwd={cwd} />;
     case "Task":
-      return <TaskToolCall input={input} resultContent={resultContent} subagentMessages={subagentMessages} SubagentConversation={SubagentConversation} cwd={cwd} />;
+    case "Agent":
+      return <TaskToolCall name={name} input={input} resultContent={resultContent} subagentMessages={subagentMessages} SubagentConversation={SubagentConversation} cwd={cwd} />;
     case "WebSearch":
       return <WebSearchToolCall input={input} resultContent={resultContent} />;
     case "WebFetch":
@@ -993,6 +1068,8 @@ export function renderToolCallContent(
       return <TaskUpdateToolCall input={input} />;
     case "TodoWrite":
       return <TodoWriteToolCall input={input} />;
+    case "TaskOutput":
+      return <TaskOutputToolCall input={input} resultContent={resultContent} />;
     case "AskUserQuestion":
       return <AskUserQuestionToolCall input={input} resultContent={resultContent} />;
     case "EnterPlanMode":

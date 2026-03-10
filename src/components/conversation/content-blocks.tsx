@@ -18,6 +18,7 @@ import {
   MCP_TOOL_COLOR,
   SELF_RENDERING_TOOLS,
 } from "./tool-renderers";
+import { formatTimestamp } from "@/lib/format";
 import type { ParsedContent, ToolResultInfo, TaskTimelineItem } from "@/lib/turn-grouping";
 import { countLines, extractToolResultText, shortenModel } from "@/lib/turn-grouping";
 import type { LogMessage } from "@/lib/types";
@@ -85,17 +86,16 @@ export function ToolUseBlock({
 
   return (
     <div className={`my-2 border-l-2 ${borderClass} px-3 py-1 rounded-r-md ${colors.bg}`}>
-      {model && (
-        <span className="float-right text-[10px] font-mono text-muted-foreground/60">
-          {shortenModel(model)}
-        </span>
-      )}
+      <div className="float-right text-[10px] font-mono text-muted-foreground/60 flex items-center gap-2">
+        {resultInfo?.timestamp && <span>{formatTimestamp(resultInfo.timestamp)}</span>}
+        {model && <span>{shortenModel(model)}</span>}
+      </div>
       {renderToolCallContent(
         name,
         input,
         showResultInRenderer ? resultInfo?.content : undefined,
-        name === "Task" ? subagentMessages : undefined,
-        name === "Task" ? SubagentConversation : undefined,
+        (name === "Task" || name === "Agent") ? subagentMessages : undefined,
+        (name === "Task" || name === "Agent") ? SubagentConversation : undefined,
         cwd,
       )}
       {resultInfo && !showResultInRenderer && (
@@ -374,6 +374,8 @@ export function ContentBlocks({
           return <ThinkingBlock key={i} text={block.thinking} />;
         }
         if (block.type === "tool_use") {
+          // ToolSearch is internal plumbing — skip
+          if (block.name === "ToolSearch") return null;
           // Grouped task tools: render group leader, skip members
           if (grouped.has(i)) {
             const group = groups.get(i);
@@ -387,7 +389,7 @@ export function ContentBlocks({
             ? toolResults.get(block.id)
             : undefined;
           let subMsgs: LogMessage[] | undefined;
-          if (block.name === "Task" && block.id && taskToSubagent && subagentMap) {
+          if ((block.name === "Task" || block.name === "Agent") && block.id && taskToSubagent && subagentMap) {
             const agentId = taskToSubagent.get(block.id);
             if (agentId) {
               subMsgs = subagentMap.get(agentId);

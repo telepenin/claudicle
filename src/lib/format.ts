@@ -51,6 +51,16 @@ export function formatRelativeTime(ts: string): string {
   return new Date(ts).toLocaleDateString();
 }
 
+export function formatTimestamp(ts: string): string {
+  const d = new Date(ts);
+  const mon = d.toLocaleString(undefined, { month: "short" });
+  const day = d.getDate();
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return `${mon} ${day}, ${h}:${m}:${s}`;
+}
+
 export function extractProject(filePath: string): string {
   // Extract folder name from .claude/projects/<encoded-path>/<uuid>.jsonl
   const match = filePath.match(/projects\/([^/]+)/);

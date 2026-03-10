@@ -20,7 +20,7 @@ import {
   type Turn,
   type TaskTimelineItem,
 } from "@/lib/turn-grouping";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, formatTimestamp } from "@/lib/format";
 import type { LogMessage } from "@/lib/types";
 
 // ─── SubagentConversation ────────────────────────────────────────────────
@@ -99,7 +99,7 @@ export function UserPromptCard({
         <MessageSquare className="h-3.5 w-3.5 text-blue-600" />
         <span className="text-xs font-medium text-blue-600">You</span>
         <span className="text-xs text-muted-foreground">
-          {new Date(turn.message.msg_timestamp).toLocaleTimeString()}
+          {formatTimestamp(turn.message.msg_timestamp)}
         </span>
       </div>
       <Card className="border-blue-200 bg-blue-50 py-0 gap-0">
@@ -164,7 +164,7 @@ export function AssistantTurnCard({
         <Bot className="h-3.5 w-3.5" />
         <span className="text-xs font-medium">Claude</span>
         <span className="text-xs text-muted-foreground">
-          {new Date(turn.timestamp).toLocaleTimeString()}
+          {formatTimestamp(turn.timestamp)}
         </span>
         {turn.model && (
           <Badge variant="outline" className="font-mono text-xs">
@@ -288,7 +288,7 @@ export function LocalCommandCard({
         <Terminal className="h-3.5 w-3.5 text-gray-500" />
         <span className="text-xs font-medium text-gray-500">Local</span>
         <span className="text-xs text-muted-foreground">
-          {new Date(turn.timestamp).toLocaleTimeString()}
+          {formatTimestamp(turn.timestamp)}
         </span>
       </div>
       <div className="rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">

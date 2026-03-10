@@ -643,7 +643,7 @@ export function buildTaskToSubagentMap(
     if (msg.msg_type !== "assistant") continue;
     const { content } = parseMessage(msg.raw);
     for (const block of content) {
-      if (block.type === "tool_use" && block.name === "Task" && block.id) {
+      if (block.type === "tool_use" && (block.name === "Task" || block.name === "Agent") && block.id) {
         const input = (block.input as Record<string, unknown>) ?? {};
         const prompt = (input.prompt as string) ?? "";
         if (prompt) {
