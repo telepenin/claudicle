@@ -111,7 +111,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
   }, [live, sessionId]);
 
   const { mainMessages, subagentMap } = useMemo(() => {
-    if (!data) return { mainMessages: [], subagentMap: new Map<string, LogMessage[]>() };
+    if (!data?.messages) return { mainMessages: [], subagentMap: new Map<string, LogMessage[]>() };
     return splitMainAndSubagent(data.messages);
   }, [data]);
 
@@ -157,7 +157,7 @@ export function LogConversationView({ sessionId }: { sessionId: string }) {
 
   return (
     <div>
-      <ConversationSummary messages={mainMessages} />
+      <ConversationSummary messages={mainMessages} cost={data.cost} />
 
       {/* Controls bar */}
       <div className="mb-4 flex items-center gap-3 flex-wrap">

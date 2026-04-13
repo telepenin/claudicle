@@ -78,10 +78,18 @@ export interface LogMessage {
   agent_id: string;
 }
 
+export interface SessionCost {
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  api_calls: number;
+}
+
 export interface LogConversation {
   session_id: string;
   messages: LogMessage[];
   project_path: string;
+  cost?: SessionCost;
 }
 
 export interface DashboardFilters {

@@ -10,6 +10,7 @@ import type {
   LogListResponse,
   LogMessage,
   LogConversation,
+  SessionCost,
   DashboardFilters,
   DimensionValues,
   SessionFile,
@@ -422,29 +423,62 @@ export async function getLogSessionList(params: {
 export async function getLogConversation(
   sessionId: string
 ): Promise<LogConversation> {
-  const result = await clickhouse.query({
-    query: `
-      SELECT
-        session_id,
-        msg_type,
-        msg_timestamp,
-        raw,
-        file_path as file,
-        is_sidechain,
-        agent_id
-      FROM jsonl_messages
-      WHERE session_id = {sessionId:String}
-      GROUP BY session_id, msg_type, msg_timestamp, raw, file, is_sidechain, agent_id
-      ORDER BY msg_timestamp ASC
-    `,
-    query_params: { sessionId },
-    format: "JSONEachRow",
-  });
+  const [result, costResult] = await Promise.all([
+    clickhouse.query({
+      query: `
+        SELECT
+          session_id,
+          msg_type,
+          msg_timestamp,
+          raw,
+          file_path as file,
+          is_sidechain,
+          agent_id
+        FROM jsonl_messages
+        WHERE session_id = {sessionId:String}
+        GROUP BY session_id, msg_type, msg_timestamp, raw, file, is_sidechain, agent_id
+        ORDER BY msg_timestamp ASC
+      `,
+      query_params: { sessionId },
+      format: "JSONEachRow",
+    }),
+    clickhouse.query({
+      query: `
+        SELECT
+          sum(cost_usd) as cost_usd,
+          sum(input_tokens) as input_tokens,
+          sum(output_tokens) as output_tokens,
+          count() as api_calls
+        FROM otel_events
+        WHERE session_id = {sessionId:String}
+          AND event_name = 'api_request'
+      `,
+      query_params: { sessionId },
+      format: "JSONEachRow",
+    }),
+  ]);
 
   const messages = await result.json<LogMessage>();
   const projectPath = messages[0]?.file ?? "";
 
-  return { session_id: sessionId, messages, project_path: projectPath };
+  const costRows = await costResult.json<{
+    cost_usd: string;
+    input_tokens: string;
+    output_tokens: string;
+    api_calls: string;
+  }>();
+  const raw = costRows[0];
+  const cost: SessionCost | undefined =
+    raw && Number(raw.api_calls) > 0
+      ? {
+          cost_usd: Number(raw.cost_usd),
+          input_tokens: Number(raw.input_tokens),
+          output_tokens: Number(raw.output_tokens),
+          api_calls: Number(raw.api_calls),
+        }
+      : undefined;
+
+  return { session_id: sessionId, messages, project_path: projectPath, cost };
 }
 
 export async function getNewSessionMessages(
